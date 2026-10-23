@@ -472,16 +472,9 @@ const Cloud = (() => {
       add: (email, r) => rpc('add_member', { p_email: email, p_role: r }),
       remove: id => rpc('remove_member', { p_user: id }),
     },
-    backups: {
-      async list() {
-        const data = must(await sb.storage.from('backups').list(agencyId, { limit: 100, sortBy: { column: 'name', order: 'desc' } }));
-        return data.filter(f => f.name.endsWith('.json.gz'));
-      },
-      async download(name) { return must(await sb.storage.from('backups').download(`${agencyId}/${name}`)); },
-      async read(name) {
-        const blob = await this.download(name);
-        return JSON.parse(await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text());
-      },
+    backups: { // nightly snapshots taken inside the database (public.take_backups)
+      list: () => rpc('list_backups'),
+      async read(id) { return must(await sb.from('backups').select('payload').eq('id', id).single()).payload; },
       toState(b) { // auto-backup format → app state
         const out = {};
         for (const c of COLLS) out[c] = (b.tables[c] || []).map(r => ({ ...r.data, id: r.id }));

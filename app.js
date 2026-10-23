@@ -1479,14 +1479,14 @@ async function renderAutoBackups() {
   const box = $('#autoBackups'); if (!box) return;
   try {
     const list = await Cloud.backups.list();
-    box.innerHTML = list.length ? `<div class="files">${list.slice(0, 10).map(f => `<div class="file-row"><span>🗄️</span><div class="grow">${fmtDate(f.name.slice(0, 10))}<div class="small muted">${((f.metadata?.size || 0) / 1024).toFixed(0)} KB</div></div>
-        <button class="btn xs" data-dl="${esc(f.name)}">İndir</button><button class="btn xs danger" data-rs="${esc(f.name)}">Geri dön</button></div>`).join('')}</div>
-        ${list.length > 10 ? `<p class="muted small mt">+${list.length - 10} eski yedek</p>` : ''}`
+    box.innerHTML = list.length ? `<div class="files">${list.map(f => `<div class="file-row"><span>🗄️</span><div class="grow">${fmtDateTime(f.taken_at)}<div class="small muted">${(f.bytes / 1024).toFixed(0)} KB</div></div>
+        <button class="btn xs" data-dl="${f.id}">İndir</button><button class="btn xs danger" data-rs="${f.id}">Geri dön</button></div>`).join('')}</div>
+        <p class="muted small mt">Her gece 04:00'te alınır, son 14 gün saklanır.</p>`
       : '<p class="muted">Henüz otomatik yedek yok. İlk yedek bu gece 04:00\'te alınır.</p>';
     box.onclick = async e => {
       const dl = e.target.closest('[data-dl]'), rs = e.target.closest('[data-rs]');
       try {
-        if (dl) download(dl.dataset.dl, await Cloud.backups.download(dl.dataset.dl));
+        if (dl) { const b = await Cloud.backups.read(dl.dataset.dl); download(`mosso-otomatik-yedek-${b.takenAt.slice(0, 10)}.json`, JSON.stringify(b), 'application/json'); }
         if (rs) {
           const b = await Cloud.backups.read(rs.dataset.rs);
           const st = Cloud.backups.toState(b);
@@ -1660,6 +1660,7 @@ function restoreBackup(file) {
   const r = new FileReader();
   r.onload = async () => {
     let b; try { b = JSON.parse(r.result); } catch (e) { return toast('Dosya okunamadı', 'err'); }
+    if (b.app === 'mosso-panel' && b.kind === 'auto' && b.tables) b = { ...b, exportedAt: b.takenAt, state: Cloud.backups.toState(b) }; // downloaded nightly backup
     if (b.app !== 'mosso-panel' || !b.state) return toast('Bu bir Mosso panel yedeği değil', 'err');
     const scope = Cloud.enabled ? 'TÜM cihazlardaki' : 'mevcut';
     if (!await confirmBox(`${fmtDateTime(b.exportedAt)} tarihli yedek yüklenecek, ${scope} veriler değiştirilecek. Devam?`, 'Geri yükle')) return;
