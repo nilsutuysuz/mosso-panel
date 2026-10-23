@@ -326,6 +326,18 @@ td b { font-weight: 600; }
 .file-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-ico { color: var(--muted); display: inline-flex; }
 
+/* Employees and their share */
+.prod-row { display: grid; grid-template-columns: 1.2fr 1.5fr 110px 32px; gap: 12px; align-items: end; margin-top: 14px; }
+.prod-row .icon-btn { margin-bottom: 2px; }
+.empty-line { margin-top: 12px; }
+
+/* Message templates: the name sits in the card header like a title */
+.tpl .card-head input.tn { border-color: transparent; background: transparent; font-weight: 600; font-size: 15px; padding-left: 6px; margin-left: -7px; height: 34px; min-width: 0; flex: 1; }
+.tpl .card-head input.tn:hover { border-color: var(--border); }
+.tpl .card-head input.tn:focus { border-color: var(--brand); background: var(--surface); }
+.tpl textarea { min-height: 150px; }
+.grid.two.tpl-grid, #tplForm { align-items: stretch; }
+
 .offers-table td, .offers-table th { padding: 6px; border-top: 0; }
 .offers-table th:first-child, .offers-table td:first-child { padding-left: 0; }
 .offers-table input:not([type=radio]) { height: 34px; }
@@ -427,6 +439,8 @@ code.secret { word-break: break-all; background: var(--rule); padding: 3px 7px; 
   .sync-pill { padding: 0 10px; max-width: 44px; font-size: 0; gap: 0; justify-content: center; }
   .grid.two { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
+  .prod-row { grid-template-columns: 1fr 96px 32px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+  .prod-row label:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .grid.kpis { grid-template-columns: repeat(2, 1fr); }
   .grid.kpis > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .kpi { padding: 14px 16px; }
@@ -458,6 +472,8 @@ code.secret { word-break: break-all; background: var(--rule); padding: 3px 7px; 
   table.stack td:first-child { flex: 1 1 100%; padding: 0; }
   table.stack td:last-child { flex: 1 1 100%; padding: 4px 0 0; }
   table.stack td .row-actions { justify-content: flex-start; flex-wrap: wrap; }
+  table.stack td[data-label]::before { content: attr(data-label) ' '; color: var(--muted); font-size: 12px; margin-right: 2px; }
+  table.stack td[data-label] { text-align: left; }
   table.stack tfoot tr { display: flex; }
   table.stack tfoot td:first-child { flex: 1; }
 }

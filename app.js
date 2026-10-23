@@ -58,6 +58,7 @@ const DEFAULT_TEMPLATES = [
 const DEFAULT_SETTINGS = {
   agencyName: 'Mosso Sigorta', ownerName: '', phone: '', renewalWindow: 60, pinHash: '',
   companies: DEFAULT_COMPANIES, rates: DEFAULT_RATES, templates: DEFAULT_TEMPLATES, lastBackupAt: '',
+  producers: [], // employees who bring their own clients: { id, name, email, share (% of commission), archived }
 };
 
 /* ============================== Utilities ============================== */
@@ -256,6 +257,20 @@ function policyStatus(p) {
   if (['iptal', 'yenilendi', 'kaybedildi'].includes(p.status)) return p.status;
   return daysUntil(p.endDate) < 0 ? 'bitti' : 'aktif';
 }
+// Who brought the client: '' = the agency itself, otherwise an employee who gets a share of the commission.
+const activeProducers = () => (state.settings.producers || []).filter(x => !x.archived);
+const producerById = id => (state.settings.producers || []).find(x => x.id === id) || null;
+const producerName = id => producerById(id)?.name || '';
+function commissionSplit(p) {
+  const pr = producerById(p.producerId);
+  const c = num(p.commission), share = pr ? num(p.producerShare ?? pr.share) : 0;
+  const emp = Math.round(c * share) / 100;
+  return { pr, c, share, emp, agency: Math.round((c - emp) * 100) / 100 };
+}
+function myProducerId() { // an employee logging in gets their own name preselected
+  const email = (Cloud.enabled && !Cloud.isOwner && Cloud.user?.email || '').toLowerCase();
+  return email ? activeProducers().find(x => (x.email || '').toLowerCase() === email)?.id || '' : '';
+}
 const statusBadge = p => { const [l, c] = POLICY_STATUS[policyStatus(p)]; return `<span class="badge ${c}">${l}</span>`; };
 
 function subjectLabel(branch) {
@@ -360,7 +375,7 @@ const waBtn = (attrs, label = 'WhatsApp', cls = 'sm') => `<button class="btn wa 
 const ui = { // per-view filter state kept across re-renders
   policies: { q: '', branch: '', company: '', status: 'aktif', exp: '' },
   customers: { q: '', type: '' }, quotes: { q: '', branch: '' }, claims: { status: 'open' },
-  renewals: { branch: '' }, custTab: 'policies', reports: { range: '12' }, collections: { show: 'open' },
+  renewals: { branch: '' }, custTab: 'policies', reports: { range: '12', tab: 'genel', cperiod: 'this', cperson: null }, collections: { show: 'open' },
 };
 
 const ROUTES = [
@@ -376,6 +391,7 @@ const ROUTES = [
     badge: () => installmentList().filter(x => !x.inst.paid && x.days < 0).length },
   { path: 'tasks', label: 'Görevler', icon: 'check-square', view: viewTasks,
     badge: () => state.tasks.filter(t => !t.done && t.due && t.due <= todayStr()).length },
+  { path: 'templates', label: 'Mesaj şablonları', icon: 'message', view: viewTemplates },
   { path: 'reports', label: 'Raporlar', icon: 'chart', view: viewReports, ownerOnly: true },
   { path: 'settings', label: 'Ayarlar & Veri', icon: 'sliders', view: viewSettings },
 ];
@@ -445,6 +461,8 @@ const ACTIONS = {
   loadDemo: async () => { if (!state.customers.length || await confirmBox('Demo verisi mevcut verilerin yanına eklenecek. Devam?', 'Ekle', false)) { seedDemo(); commit('Demo verisi yüklendi'); toast('Demo verisi yüklendi'); } },
   importCsv: () => pickFile('.csv,text/csv', importCSV),
   setTab: d => { ui.custTab = d.tab; render(); },
+  reportTab: d => { ui.reports.tab = d.tab; render(); },
+  pickPerson: d => { ui.reports.cperson = d.pid; render(); document.getElementById('cPerson')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
   backup: () => exportBackup(),
 };
 document.addEventListener('click', e => {
@@ -1059,7 +1077,7 @@ function viewPolicies(view) {
   const list = () => {
     const rows = filtered(), shown = rows.slice(0, 300);
     $('#pList').innerHTML = rows.length ? `<table class="stack"><thead><tr><th>Müşteri</th><th>Branş</th><th class="hide-mobile">Şirket</th><th class="hide-mobile">Konu</th><th>Bitiş</th><th class="num">Prim</th><th class="num hide-mobile">Komisyon</th><th class="hide-mobile">Durum</th></tr></thead><tbody>
-      ${shown.map(p => `<tr class="click" data-open="openPolicy:${p.id}"><td><b>${esc(custOf(p)?.name || '—')}</b><div class="small muted">${esc(p.policyNo || '')}</div></td>
+      ${shown.map(p => `<tr class="click" data-open="openPolicy:${p.id}"><td><b>${esc(custOf(p)?.name || '—')}</b><div class="small muted">${esc([p.policyNo, producerName(p.producerId)].filter(Boolean).join(' · '))}</div></td>
         <td>${esc(p.branch)}</td><td class="hide-mobile">${esc(p.company || '')}</td><td class="hide-mobile">${esc(p.subject || '')}</td>
         <td>${fmtDate(p.endDate)}${policyStatus(p) === 'aktif' && daysUntil(p.endDate) <= 30 ? '<br>' + daysBadge(daysUntil(p.endDate)) : ''}</td>
         <td class="num">${money(p.premium)}</td><td class="num hide-mobile">${money(p.commission)}</td><td class="hide-mobile">${statusBadge(p)}</td></tr>`).join('')}
@@ -1078,12 +1096,18 @@ function openPolicyForm(id, preset = {}, onSaved) {
   const c = custOf(p);
   const [subjL, subjPh] = subjectLabel(p.branch);
   const claims = id ? state.claims.filter(x => x.policyId === id) : [];
+  const lastProducerOf = cid => state.policies.filter(x => x.customerId === cid && x.id !== id).sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0]?.producerId || '';
+  if (!id && p.producerId === undefined) p.producerId = myProducerId() || (p.customerId ? lastProducerOf(p.customerId) : '');
+  const prodList = activeProducers();
+  if (p.producerId && !prodList.some(x => x.id === p.producerId) && producerById(p.producerId)) prodList.push(producerById(p.producerId));
+  const prodField = prodList.length ? field('Kimin müşterisi', `<select name="producerId">${opts([['', `${state.settings.agencyName || 'Acente'} (acente)`], ...prodList.map(x => [x.id, x.name])], p.producerId || '')}</select>`) : '';
 
   openModal({
     title: id ? `${p.branch} poliçesi – ${c?.name || ''}` : 'Yeni poliçe', wide: true,
     body: `<form id="pf" class="form-grid">${custDatalist()}
       ${field('Müşteri *', `<input name="customer" list="custList" required value="${esc(c ? custLabel(c) : '')}" placeholder="İsim yazıp seçin ya da yeni isim girin">`)}
       ${field('Telefon (yeni müşteri için)', `<input name="newPhone" inputmode="tel" placeholder="05xx xxx xx xx" ${c ? 'disabled' : ''}>`)}
+      ${prodField}
       ${field('Branş', `<select name="branch">${opts(BRANCHES, p.branch)}</select>`)}
       ${field('Sigorta şirketi', `<select name="company"><option value="">Seçin</option>${opts(companyList(p.company), p.company)}</select>`)}
       ${field('Poliçe no', `<input name="policyNo" value="${esc(p.policyNo || '')}">`)}
@@ -1119,7 +1143,12 @@ function openPolicyForm(id, preset = {}, onSaved) {
       else if (num(form.premium.value)) form.premium.oninput();
       form.endDate.oninput = () => { endTouched = true; };
       form.startDate.onchange = () => { if (!endTouched && form.startDate.value) form.endDate.value = addMonths(form.startDate.value, 12); };
-      form.customer.oninput = () => { form.newPhone.disabled = !!findCustomer(form.customer.value); };
+      form.customer.oninput = () => {
+        const cc = findCustomer(form.customer.value);
+        form.newPhone.disabled = !!cc;
+        if (cc && form.producerId && !form.producerId.dataset.touched && !id) form.producerId.value = myProducerId() || lastProducerOf(cc.id);
+      };
+      form.producerId && (form.producerId.onchange = () => { form.producerId.dataset.touched = '1'; });
       if (id) renderFiles($('#pFiles', el), { customerId: p.customerId, policyId: id });
 
       $('#pSave', el).onclick = async () => {
@@ -1134,6 +1163,8 @@ function openPolicyForm(id, preset = {}, onSaved) {
         const prevPremium = byId('policies', id)?.premium;
         const data = { ...p, ...d, customerId: cust.id, premium: num(d.premium), commission: num(d.commission), status: d.status || p.status || 'aktif' };
         delete data.customer; delete data.newPhone;
+        data.producerId = d.producerId || '';
+        data.producerShare = !data.producerId ? 0 : (data.producerId === p.producerId && p.producerShare != null ? p.producerShare : num(producerById(data.producerId)?.share));
         const sameShape = p.installments?.length && data.payment === p.payment && (data.payment !== 'taksit' || +d.instCount === p.installments.length) && num(prevPremium) === data.premium && data.startDate === p.startDate;
         data.installments = sameShape ? p.installments : buildInstallments(data, p.installments);
         const saved = upsert('policies', data);
@@ -1277,8 +1308,12 @@ function openTaskForm(id, preset = {}) {
 
 /* ============================== Reports ============================== */
 
+const reportTabs = () => `<div class="tabs">${[['genel', 'Genel'], ['pay', 'Komisyon paylaşımı']].map(([k, l]) =>
+  `<button class="${ui.reports.tab === k ? 'active' : ''}" data-act="reportTab" data-tab="${k}">${l}</button>`).join('')}</div>`;
+
 function viewReports(view) {
   const f = ui.reports;
+  if (f.tab === 'pay') return viewCommissionReport(view);
   const today = todayStr();
   const from = f.range === 'year' ? today.slice(0, 4) + '-01-01' : f.range === '12' ? addMonths(today, -12) : '0000';
   const pols = state.policies.filter(p => p.status !== 'iptal' && (p.startDate || '') >= from && (p.startDate || '') <= today);
@@ -1313,6 +1348,7 @@ function viewReports(view) {
 
   view.innerHTML = `
     <div class="page-head"><h1>Raporlar</h1><div class="actions"><select id="rRange" style="width:auto">${opts([['12', 'Son 12 ay'], ['year', 'Bu yıl'], ['all', 'Tüm zamanlar']], f.range)}</select></div></div>
+    ${reportTabs()}
     <div class="grid kpis">
       <div class="card kpi"><div class="label">Üretim (prim)</div><div class="value">${money(totalP)}</div><div class="sub">${pols.length} poliçe</div></div>
       <div class="card kpi"><div class="label">Komisyon</div><div class="value">${money(totalC)}</div><div class="sub">ort. %${totalP ? (totalC / totalP * 100).toFixed(1) : 0}</div></div>
@@ -1332,6 +1368,64 @@ function viewReports(view) {
         ${Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="list-item"><div class="grow">${esc(k)}</div><b>${n}</b></div>`).join('') || emptyState('Kayıp yok')}</div>
     </div>`;
   $('#rRange').onchange = e => { f.range = e.target.value; render(); };
+}
+
+// Per-person commission: what each employee earns from the clients they brought, and what stays with the agency.
+function viewCommissionReport(view) {
+  const f = ui.reports, today = todayStr(), ym = today.slice(0, 7);
+  const [from, to] = {
+    this: [ym + '-01', addMonths(ym + '-01', 1)],
+    last: [addMonths(ym + '-01', -1), ym + '-01'],
+    year: [today.slice(0, 4) + '-01-01', (+today.slice(0, 4) + 1) + '-01-01'],
+    '12': [addMonths(today, -12), addDays(today, 1)],
+    all: ['0000', '9999'],
+  }[f.cperiod] || ['0000', '9999'];
+  const periodLabel = { this: 'Bu ay', last: 'Geçen ay', year: 'Bu yıl', '12': 'Son 12 ay', all: 'Tüm zamanlar' }[f.cperiod];
+  const pols = state.policies.filter(p => p.status !== 'iptal' && (p.startDate || '') >= from && (p.startDate || '') < to);
+  const people = [{ id: '', name: `${state.settings.agencyName || 'Acente'} (acente)` }, ...(state.settings.producers || []).filter(x => !x.archived || pols.some(p => p.producerId === x.id))];
+  const rows = people.map(x => {
+    const mine = pols.filter(p => (p.producerId || '') === x.id && (x.id || !producerById(p.producerId)));
+    const t = { n: mine.length, prem: 0, c: 0, emp: 0, agency: 0 };
+    mine.forEach(p => { const sp = commissionSplit(p); t.prem += num(p.premium); t.c += sp.c; t.emp += x.id ? sp.emp : 0; t.agency += sp.agency; });
+    return { x, t, mine };
+  });
+  const tot = rows.reduce((a, r) => ({ c: a.c + r.t.c, emp: a.emp + r.t.emp, agency: a.agency + r.t.agency }), { c: 0, emp: 0, agency: 0 });
+  if (f.cperson == null || !people.some(x => x.id === f.cperson)) f.cperson = people[1]?.id ?? '';
+  const sel = rows.find(r => r.x.id === f.cperson) || rows[0];
+  const noProducers = !(state.settings.producers || []).length;
+
+  view.innerHTML = `
+    <div class="page-head"><h1>Raporlar</h1><div class="actions"><select id="cPeriod" style="width:auto">${opts([['this', 'Bu ay'], ['last', 'Geçen ay'], ['year', 'Bu yıl'], ['12', 'Son 12 ay'], ['all', 'Tüm zamanlar']], f.cperiod)}</select></div></div>
+    ${reportTabs()}
+    ${noProducers ? `<div class="card mb">${emptyState('Henüz çalışan tanımlı değil. Çalışanları ve paylarını Ayarlar’dan ekleyin; poliçelerde “Kimin müşterisi” seçildikçe burada ayrı ayrı görünür.', '<a class="btn" href="#/settings">Ayarlar’a git</a>')}</div>` : ''}
+    <div class="grid kpis">
+      <div class="card kpi"><div class="label">Toplam komisyon</div><div class="value">${money(tot.c)}</div><div class="sub">${periodLabel} · ${pols.length} poliçe</div></div>
+      <div class="card kpi"><div class="label">Çalışanlara düşen</div><div class="value">${money(tot.emp)}</div><div class="sub">${rows.filter(r => r.x.id && r.t.n).length} çalışan</div></div>
+      <div class="card kpi"><div class="label">Acenteye kalan</div><div class="value">${money(tot.agency)}</div><div class="sub">${tot.c ? '%' + (tot.agency / tot.c * 100).toFixed(0) : '—'}</div></div>
+    </div>
+    <div class="card mb"><div class="card-head"><h2>Kişi bazında</h2></div><div class="table-wrap"><table class="stack">
+      <thead><tr><th>Kim</th><th class="num">Poliçe</th><th class="num hide-mobile">Prim</th><th class="num">Komisyon</th><th class="num hide-mobile">Pay</th><th class="num">Çalışanın payı</th><th class="num">Acenteye kalan</th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="click" data-act="pickPerson" data-pid="${esc(r.x.id)}">
+        <td><b>${esc(r.x.name)}</b>${r.x.archived ? ' <span class="badge">Ayrıldı</span>' : ''}</td><td class="num" data-label="Poliçe">${r.t.n}</td><td class="num hide-mobile">${money(r.t.prem)}</td>
+        <td class="num" data-label="Komisyon">${money(r.t.c)}</td><td class="num hide-mobile">${r.x.id ? '%' + num(r.x.share) : '—'}</td>
+        <td class="num" data-label="Çalışanın payı">${r.x.id ? `<b>${money(r.t.emp)}</b>` : '<span class="muted">—</span>'}</td><td class="num" data-label="Acenteye kalan">${money(r.t.agency)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Toplam</td><td class="num">${pols.length}</td><td class="num hide-mobile">${money(rows.reduce((a, r) => a + r.t.prem, 0))}</td><td class="num">${money(tot.c)}</td><td class="hide-mobile"></td><td class="num">${money(tot.emp)}</td><td class="num">${money(tot.agency)}</td></tr></tfoot>
+    </table></div></div>
+    <div class="card"><div class="card-head"><h2>Poliçe dökümü</h2><div class="actions">
+      <select id="cPerson" style="width:auto">${opts(people.map(x => [x.id, x.name]), sel.x.id)}</select>
+      <button class="btn sm" id="cExport">${icon('download')}Excel'e aktar</button></div></div>
+      <div class="table-wrap">${sel.mine.length ? `<table class="stack"><thead><tr><th>Müşteri</th><th>Branş / Şirket</th><th class="hide-mobile">Başlangıç</th><th class="num hide-mobile">Prim</th><th class="num">Komisyon</th><th class="num">${sel.x.id ? 'Payı' : 'Acenteye'}</th></tr></thead><tbody>
+        ${sel.mine.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')).map(p => { const sp = commissionSplit(p); return `<tr class="click" data-open="openPolicy:${p.id}">
+          <td><b>${esc(custOf(p)?.name || '—')}</b></td><td>${esc(p.branch)}<div class="small muted">${esc(p.company || '')}</div></td><td class="hide-mobile">${fmtDate(p.startDate)}</td>
+          <td class="num hide-mobile">${money(p.premium)}</td><td class="num" data-label="Komisyon">${money(sp.c)}</td><td class="num" data-label="${sel.x.id ? 'Payı' : 'Acenteye'}">${sel.x.id ? `${money(sp.emp)} <span class="muted small">%${sp.share}</span>` : money(sp.agency)}</td></tr>`; }).join('')}
+        </tbody></table>` : emptyState(`${esc(sel.x.name)} için bu dönemde poliçe yok.`)}</div></div>`;
+
+  $('#cPeriod').onchange = e => { f.cperiod = e.target.value; render(); };
+  $('#cPerson').onchange = e => { f.cperson = e.target.value; render(); };
+  $('#cExport').onclick = () => download(`komisyon-${(sel.x.name || 'acente').replace(/\s+/g, '-')}-${from.slice(0, 7)}.csv`, toCSV([
+    ['Kim', 'Müşteri', 'Branş', 'Şirket', 'Poliçe No', 'Başlangıç', 'Prim', 'Komisyon', 'Pay %', 'Çalışanın payı', 'Acenteye kalan'],
+    ...sel.mine.map(p => { const sp = commissionSplit(p); const tr = n => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return [sel.x.name, custOf(p)?.name, p.branch, p.company, p.policyNo, fmtDate(p.startDate), tr(p.premium), tr(sp.c), sel.x.id ? sp.share : '', sel.x.id ? tr(sp.emp) : '', tr(sp.agency)]; })]));
 }
 
 /* ============================== Settings & data ============================== */
@@ -1375,12 +1469,10 @@ function viewSettings(view) {
       ${isOwner() ? '<div class="hstack mt"><button class="btn" data-act="loadDemo">Demo verisi yükle</button><button class="btn danger" id="wipe">Tüm verileri sil</button></div>' : ''}
     </div></div>
 
-    <div class="card mb"><div class="card-head"><h2>WhatsApp mesaj şablonları</h2><div class="actions"><button class="btn sm" id="addTpl">${icon('plus')}Şablon</button></div></div><div class="card-pad">
-      <p class="muted small">Kullanılabilir alanlar: {ad} {brans} {sirket} {policeno} {bitis} {konu} {plaka} {prim} {teklifler} {dosya} {durum} {tutar} {vade} {acente}</p>
-      <form id="sfTpl">${s.templates.map(t => `<div class="mt" data-tid="${t.id}"><div class="hstack"><input class="tn" value="${esc(t.name)}" style="flex:1"><button type="button" class="icon-btn tdel" aria-label="Şablonu sil">${icon('trash')}</button></div>
-        <textarea class="tt" rows="4" style="margin-top:6px">${esc(t.text)}</textarea></div>`).join('')}
-        <button class="btn primary mt">Şablonları kaydet</button></form>
-    </div></div>
+    ${isOwner() ? `<form class="card mb" id="sfProd"><div class="card-head"><h2>Çalışanlar ve komisyon paylaşımı</h2><div class="actions"><button type="button" class="btn sm" id="addProd">${icon('plus')}Çalışan</button></div></div><div class="card-pad">
+      <p class="muted">Çalışanın kendi getirdiği müşterilerin komisyonu bu oranla paylaşılır. Poliçede “Kimin müşterisi” alanından seçilir; oran poliçe kaydedilirken sabitlenir, sonradan değişirse yalnızca yeni poliçelere uygulanır.</p>
+      <div id="prodRows">${activeProducers().map(producerRow).join('') || '<p class="empty-line muted">Henüz çalışan eklenmedi.</p>'}</div>
+      <button class="btn primary mt">Kaydet</button></div></form>` : ''}
 
     <div class="grid two mb">
       <form class="card" id="sfComp"><div class="card-head"><h2>Çalışılan sigorta şirketleri</h2></div><div class="card-pad">
@@ -1399,13 +1491,27 @@ function viewSettings(view) {
   $('#pinOff') && ($('#pinOff').onclick = () => { s.pinHash = ''; commit('PIN kaldırıldı'); });
   $('#sfComp').onsubmit = e => { e.preventDefault(); s.companies = e.target.companies.value.split('\n').map(x => x.trim()).filter(Boolean); commit(); toast('Kaydedildi'); };
   $('#sfRates').onsubmit = e => { e.preventDefault(); const d = formData(e.target); BRANCHES.forEach(b => { s.rates[b] = num(d[b]); }); commit(); toast('Kaydedildi'); };
-  $('#sfTpl').onsubmit = e => {
-    e.preventDefault();
-    s.templates = $$('[data-tid]', e.target).map(div => { const old = s.templates.find(t => t.id === div.dataset.tid) || {}; return { ...old, id: div.dataset.tid, name: $('.tn', div).value, text: $('.tt', div).value }; });
-    commit('Şablonlar güncellendi'); toast('Şablonlar kaydedildi');
-  };
-  $('#sfTpl').onclick = e => { const b = e.target.closest('.tdel'); if (b) b.closest('[data-tid]').remove(); };
-  $('#addTpl').onclick = () => { s.templates.push({ id: 't_' + uid(), kind: 'genel', name: 'Yeni şablon', text: 'Merhaba {ad},\n\n{acente}' }); commit(); };
+  const prodForm = $('#sfProd');
+  if (prodForm) {
+    $('#addProd').onclick = () => {
+      $('#prodRows .empty-line')?.remove();
+      $('#prodRows').insertAdjacentHTML('beforeend', producerRow({ id: 'pr_' + uid(), name: '', email: '', share: 50 }));
+      $('#prodRows .prod-row:last-child input').focus();
+    };
+    prodForm.onclick = async e => {
+      const b = e.target.closest('.pdel'); if (!b) return;
+      const row = b.closest('[data-pid]'), used = state.policies.some(x => x.producerId === row.dataset.pid);
+      if (used && !await confirmBox('Bu çalışan listeden kaldırılacak. Eski poliçelerindeki kayıt ve raporlar korunur. Devam?', 'Kaldır', false)) return;
+      row.remove();
+    };
+    prodForm.onsubmit = e => {
+      e.preventDefault();
+      const rows = $$('[data-pid]', prodForm).map(r => ({ id: r.dataset.pid, name: $('.pn', r).value.trim(), email: $('.pe', r).value.trim(), share: Math.min(100, Math.max(0, num($('.ps', r).value))) })).filter(x => x.name);
+      const kept = new Set(rows.map(x => x.id));
+      s.producers = [...rows, ...(s.producers || []).filter(x => !kept.has(x.id)).map(x => ({ ...x, archived: true }))];
+      commit('Çalışan listesi güncellendi'); toast('Kaydedildi');
+    };
+  }
   $('#restore') && ($('#restore').onclick = () => pickFile('.json,application/json', restoreBackup));
   $('#csvTpl').onclick = () => download('mosso-police-sablonu.csv', toCSV([CSV_HEADERS, ['Ayşe Yılmaz', '0532 111 22 33', '12345678901', 'ayse@ornek.com', 'Kasko', 'Allianz', 'K-123456', '15.03.2026', '15.03.2027', '18.500,00', '2.775,00', '34 ABC 123']]));
   $('#expCust').onclick = () => download(`musteriler-${todayStr()}.csv`, toCSV([['Ad Soyad', 'Tür', 'Telefon', 'TC/VKN', 'E-posta', 'Doğum tarihi', 'Şehir', 'Adres', 'Etiketler', 'KVKK'],
@@ -1421,6 +1527,55 @@ function viewSettings(view) {
   if (Cloud.enabled) mountCloudSettings();
 }
 
+function producerRow(x) {
+  return `<div class="prod-row" data-pid="${esc(x.id)}">
+    ${field('Ad Soyad', `<input class="pn" value="${esc(x.name)}" placeholder="Ayşe Kaya">`)}
+    ${field('Giriş e-postası (opsiyonel)', `<input class="pe" type="email" value="${esc(x.email || '')}" placeholder="Panele giriyorsa">`)}
+    ${field('Payı (%)', `<input class="ps num" type="number" min="0" max="100" step="1" value="${esc(x.share ?? 50)}">`)}
+    <button type="button" class="icon-btn pdel" aria-label="Çalışanı kaldır">${icon('trash')}</button></div>`;
+}
+
+/* ---------- Message templates (own tab) ---------- */
+
+function viewTemplates(view) {
+  const s = state.settings;
+  const signature = [s.ownerName, s.agencyName].filter(Boolean).join(' – ');
+  view.innerHTML = `
+    <div class="page-head"><div><h1>Mesaj şablonları</h1><div class="muted">${s.templates.length} şablon · değişiklikler otomatik kaydedilir</div></div>
+      <div class="actions"><button class="btn primary" id="addTpl">${icon('plus')}Yeni şablon</button></div></div>
+    <p class="muted mb">Alanlar müşteri ekranından gönderirken otomatik dolar: {ad} {brans} {sirket} {policeno} {bitis} {plaka} {prim} {teklifler} {dosya} {durum} {tutar} {vade} {acente}. Kopyala, imzanızı ({acente}) doldurup gerisini olduğu gibi panoya alır.</p>
+    <form id="tplForm" class="grid two" onsubmit="return false">${s.templates.map(t => `<div class="card tpl" data-tid="${esc(t.id)}">
+      <div class="card-head"><input class="tn" value="${esc(t.name)}" aria-label="Şablon adı"><div class="actions">
+        <button type="button" class="btn sm tcopy">${icon('copy')}Kopyala</button>
+        <button type="button" class="icon-btn tdel" aria-label="Şablonu sil">${icon('trash')}</button></div></div>
+      <div class="card-pad"><textarea class="tt" rows="7" aria-label="Mesaj metni">${esc(t.text)}</textarea></div></div>`).join('')}</form>`;
+  const form = $('#tplForm');
+  const collect = () => $$('[data-tid]', form).map(div => {
+    const old = s.templates.find(t => t.id === div.dataset.tid) || {};
+    return { ...old, id: div.dataset.tid, name: $('.tn', div).value.trim() || 'Adsız şablon', text: $('.tt', div).value };
+  });
+  form.addEventListener('change', () => { s.templates = collect(); save(); toast('Kaydedildi'); });
+  form.onclick = async e => {
+    const card = e.target.closest('[data-tid]');
+    if (e.target.closest('.tcopy')) {
+      const text = $('.tt', card).value.replace(/\{acente\}/g, signature);
+      try { await navigator.clipboard.writeText(text); }
+      catch (err) { const ta = $('.tt', card); ta.select(); document.execCommand('copy'); }
+      const b = e.target.closest('.tcopy'); b.innerHTML = icon('check') + 'Kopyalandı';
+      setTimeout(() => { b.innerHTML = icon('copy') + 'Kopyala'; }, 1600);
+    }
+    if (e.target.closest('.tdel')) {
+      if (!await confirmBox(`“${$('.tn', card).value}” şablonu silinsin mi?`, 'Sil')) return;
+      card.remove(); s.templates = collect(); commit('Şablon silindi');
+    }
+  };
+  $('#addTpl').onclick = () => {
+    s.templates = [...collect(), { id: 't_' + uid(), kind: 'genel', name: 'Yeni şablon', text: 'Merhaba {ad},\n\n{acente}' }];
+    commit();
+    const last = $$('#tplForm .tn').pop(); last?.focus(); last?.select();
+  };
+}
+
 /* ---------- Cloud-only settings: account, 2FA, users, automatic backups, audit ---------- */
 
 function mountCloudSettings() {
@@ -1428,7 +1583,7 @@ function mountCloudSettings() {
   const lastSync = Cloud.lastSync ? fmtDateTime(Cloud.lastSync) : '—';
   box.innerHTML = `
     <div class="card"><div class="card-head"><h2>Hesap & senkronizasyon</h2></div><div class="card-pad">
-      <div class="kv"><div><span>Giriş yapan</span><b>${esc(Cloud.user?.email)}</b></div><div><span>Rol</span><b>${Cloud.isOwner ? 'Acente sahibi' : 'Çalışan'}</b></div>
+      <div class="kv"><div><span>Giriş yapan</span><b>${esc(Cloud.user?.email)}</b></div><div><span>Rol</span><b>${Cloud.isOwner ? 'Sahip (admin)' : 'Çalışan'}</b></div>
         <div><span>Son eşitleme</span><b>${lastSync}</b></div><div><span>Gönderilmeyi bekleyen</span><b>${Cloud.pending}</b></div></div>
       ${Cloud.lastError ? `<p class="err small mt">Son hata: ${esc(Cloud.lastError)}</p>` : ''}
       <div class="hstack mt"><button class="btn sm" id="syncNow">⟳ Şimdi eşitle</button><button class="btn sm" id="chPw">Şifre değiştir</button><button class="btn sm danger" id="signOut2">Çıkış yap</button></div>
@@ -1438,7 +1593,7 @@ function mountCloudSettings() {
     <div class="card"><div class="card-head"><h2>Kullanıcılar</h2></div><div class="card-pad">
       <div id="memberList"><p class="muted">Yükleniyor…</p></div>
       <form id="addMember" class="hstack mt"><input name="email" type="email" required placeholder="asistan@ornek.com" style="flex:1;min-width:180px">
-        <select name="role" style="width:auto">${opts([['staff', 'Çalışan'], ['owner', 'Sahip']])}</select><button class="btn primary">Ekle</button></form>
+        <select name="role" style="width:auto">${opts([['staff', 'Çalışan'], ['owner', 'Sahip (admin)']])}</select><button class="btn primary">Ekle</button></form>
       <p class="muted small mt">Önce kişiyi Supabase → Authentication → Users → <b>Invite user</b> ile davet edin, şifresini belirlesin, sonra buradan ekleyin. Çalışanlar raporları ve veri silme işlemlerini görmez.</p>
     </div></div>
     <div class="card"><div class="card-head"><h2>Otomatik yedekler</h2></div><div class="card-pad" id="autoBackups"><p class="muted">Yükleniyor…</p></div></div>` : ''}`;
@@ -1503,7 +1658,7 @@ async function renderMembers() {
   const box = $('#memberList'); if (!box) return;
   try {
     const list = await Cloud.members.list();
-    box.innerHTML = list.map(m => `<div class="list-item" style="padding:8px 0"><div class="grow"><div class="title">${esc(m.email)}</div><div class="meta">${m.role === 'owner' ? 'Sahip' : 'Çalışan'} · ${fmtDate(m.created_at.slice(0, 10))}</div></div>
+    box.innerHTML = list.map(m => `<div class="list-item" style="padding:8px 0"><div class="grow"><div class="title">${esc(m.email)}</div><div class="meta">${m.role === 'owner' ? 'Sahip (admin)' : 'Çalışan'} · ${fmtDate(m.created_at.slice(0, 10))}</div></div>
       ${m.user_id === Cloud.user.id ? '<span class="badge">Siz</span>' : `<button class="btn xs danger" data-rm="${m.user_id}">Çıkar</button>`}</div>`).join('');
     box.onclick = async e => {
       const b = e.target.closest('[data-rm]'); if (!b) return;
@@ -1563,7 +1718,7 @@ function toCSV(rows) {
 }
 function exportPoliciesCSV(list) {
   const trNum = n => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  download(`policeler-${todayStr()}.csv`, toCSV([[...CSV_HEADERS, 'Durum'], ...list.map(p => { const c = custOf(p); return [c?.name, c?.phone, c?.tc, c?.email, p.branch, p.company, p.policyNo, fmtDate(p.startDate), fmtDate(p.endDate), trNum(p.premium), trNum(p.commission), p.subject, POLICY_STATUS[policyStatus(p)][0]]; })]));
+  download(`policeler-${todayStr()}.csv`, toCSV([[...CSV_HEADERS, 'Durum', 'Kimin müşterisi'], ...list.map(p => { const c = custOf(p); return [c?.name, c?.phone, c?.tc, c?.email, p.branch, p.company, p.policyNo, fmtDate(p.startDate), fmtDate(p.endDate), trNum(p.premium), trNum(p.commission), p.subject, POLICY_STATUS[policyStatus(p)][0], producerName(p.producerId) || 'Acente']; })]));
 }
 
 function parseCSV(text) {
@@ -1822,6 +1977,9 @@ function seedDemo() {
       upsert('policies', p);
     });
   });
+  if (!(state.settings.producers || []).length) state.settings.producers = [{ id: 'pr_ayse', name: 'Ayşe Kaya', email: '', share: 50 }, { id: 'pr_mert', name: 'Mert Aydın', email: '', share: 50 }];
+  const demoCust = new Set(custs.map(c => c.id));
+  state.policies.forEach(p => { if (demoCust.has(p.customerId) && !p.producerId && rnd() < .4) { const pr = pick(state.settings.producers); p.producerId = pr.id; p.producerShare = pr.share; } });
   // Older renewed/lost policies so reports have history
   custs.slice(4, 16).forEach((c, i) => {
     const end = addDays(today, -Math.floor(rnd() * 300) - 5);
