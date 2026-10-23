@@ -1484,7 +1484,7 @@ function viewSettings(view) {
 
     <div class="card"><div class="card-head"><h2>İşlem geçmişi${Cloud.enabled ? ' (bu cihaz)' : ''}</h2></div>
       ${state.log.slice(0, 40).map(l => `<div class="list-item"><div class="grow">${esc(l.text)}</div><span class="small muted">${fmtDateTime(l.at)}</span></div>`).join('') || emptyState('Henüz işlem yok')}</div>
-    ${Cloud.enabled && isOwner() ? '<div class="card mt" id="auditCard"><div class="card-head"><h2>Kim ne değiştirdi (tüm kullanıcılar)</h2></div><div class="empty">Yükleniyor…</div></div>' : ''}`;
+    ${Cloud.enabled && isOwner() ? '<div class="card mt" id="auditCard"><div class="card-head"><h2>Son 5 değişiklik (tüm kullanıcılar)</h2></div><div class="empty">Yükleniyor…</div></div>' : ''}`;
 
   $('#sfAgency').onsubmit = e => { e.preventDefault(); Object.assign(s, formData(e.target)); s.renewalWindow = +s.renewalWindow || 60; commit('Acente bilgileri güncellendi'); toast('Kaydedildi'); };
   $('#sfPin').onsubmit = async e => { e.preventDefault(); const pin = e.target.pin.value; if (pin.length < 4) return toast('PIN en az 4 hane olmalı', 'err'); s.pinHash = await hashPin(pin); commit('PIN güncellendi'); toast('PIN belirlendi'); };
@@ -1617,7 +1617,11 @@ function mountCloudSettings() {
   if (Cloud.isOwner) { renderMembers(); renderAutoBackups(); renderAudit(); }
   $('#addMember') && ($('#addMember').onsubmit = async e => {
     e.preventDefault(); const d = formData(e.target);
-    try { await Cloud.members.add(d.email, d.role); toast('Kullanıcı eklendi'); e.target.reset(); renderMembers(); } catch (err) { toast(err.message, 'err'); }
+    try {
+      await Cloud.members.add(d.email, d.role);
+      if (d.role === 'staff' && ensureProducers([{ email: d.email.trim() }], { revive: true })) commit('Çalışan komisyon listesine eklendi');
+      toast('Kullanıcı eklendi'); e.target.reset(); renderMembers();
+    } catch (err) { toast(err.message, 'err'); }
   });
 }
 
@@ -1654,15 +1658,42 @@ async function renderMfa() {
   };
 }
 
+// Every login with the "Çalışan" role is also a commission employee, so the owner never enters them twice.
+const nameFromEmail = email => email.split('@')[0].split(/[._-]+/).filter(Boolean)
+  .map(w => w.charAt(0).toLocaleUpperCase('tr-TR') + w.slice(1)).join(' ');
+function ensureProducers(staff, { revive = false } = {}) {
+  const prods = state.settings.producers ||= [];
+  let changed = 0;
+  for (const m of staff) {
+    const email = (m.email || '').toLowerCase();
+    const found = prods.find(x => (x.email || '').toLowerCase() === email);
+    if (!found) { prods.push({ id: 'pr_' + uid(), name: nameFromEmail(m.email), email: m.email, share: 50 }); changed++; }
+    else if (revive && found.archived) { delete found.archived; changed++; }
+  }
+  return changed;
+}
+
 async function renderMembers() {
   const box = $('#memberList'); if (!box) return;
   try {
     const list = await Cloud.members.list();
-    box.innerHTML = list.map(m => `<div class="list-item" style="padding:8px 0"><div class="grow"><div class="title">${esc(m.email)}</div><div class="meta">${m.role === 'owner' ? 'Sahip (admin)' : 'Çalışan'} · ${fmtDate(m.created_at.slice(0, 10))}</div></div>
-      ${m.user_id === Cloud.user.id ? '<span class="badge">Siz</span>' : `<button class="btn xs danger" data-rm="${m.user_id}">Çıkar</button>`}</div>`).join('');
+    const added = ensureProducers(list.filter(m => m.role === 'staff'));
+    if (added) { commit(`${added} çalışan komisyon listesine eklendi`); toast('Çalışanlar komisyon paylaşımı listesine eklendi'); return; }
+    box.innerHTML = list.map(m => `<div class="list-item" style="padding:8px 0"><div class="grow"><div class="title">${esc(m.email)}</div><div class="meta">${fmtDate(m.created_at.slice(0, 10))}</div></div>
+      ${m.user_id === Cloud.user.id ? '<span class="badge">Sahip (admin) · Siz</span>'
+        : `<select class="member-role" data-email="${esc(m.email)}" aria-label="Rol" style="width:auto">${opts([['staff', 'Çalışan'], ['owner', 'Sahip (admin)']], m.role)}</select>
+           <button class="btn xs danger" data-rm="${m.user_id}">Çıkar</button>`}</div>`).join('');
+    box.onchange = async e => {
+      const sel = e.target.closest('.member-role'); if (!sel) return;
+      try {
+        await Cloud.members.add(sel.dataset.email, sel.value);
+        if (sel.value === 'staff' && ensureProducers([{ email: sel.dataset.email }], { revive: true })) commit('Çalışan komisyon listesine eklendi');
+        toast('Rol güncellendi'); renderMembers();
+      } catch (err) { toast(err.message, 'err'); renderMembers(); }
+    };
     box.onclick = async e => {
       const b = e.target.closest('[data-rm]'); if (!b) return;
-      if (!await confirmBox('Bu kullanıcının erişimi kaldırılsın mı?', 'Kaldır')) return;
+      if (!await confirmBox('Bu kullanıcının erişimi kaldırılsın mı? Komisyon geçmişi korunur.', 'Kaldır')) return;
       try { await Cloud.members.remove(b.dataset.rm); renderMembers(); } catch (err) { toast(err.message, 'err'); }
     };
   } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
@@ -1697,7 +1728,7 @@ async function renderAudit() {
   const TABLE_LABEL = { customers: 'Müşteri', policies: 'Poliçe', quotes: 'Teklif', claims: 'Hasar', tasks: 'Görev', notes: 'Not', files: 'Belge', settings: 'Ayarlar' };
   const ACTION_LABEL = { insert: 'eklendi', update: 'güncellendi', delete: 'silindi', restore: 'geri getirildi' };
   try {
-    const [rows, members] = await Promise.all([Cloud.audit(60), Cloud.members.list()]);
+    const [rows, members] = await Promise.all([Cloud.audit(5), Cloud.members.list()]);
     const who = Object.fromEntries(members.map(m => [m.user_id, m.email.split('@')[0]]));
     const label = r => {
       const rec = r.table_name === 'settings' ? null : byId(r.table_name, r.record_id);
@@ -1705,7 +1736,7 @@ async function renderAudit() {
       const c = r.table_name === 'customers' ? rec : custOf(rec);
       return esc(c?.name || rec.title || rec.name || '');
     };
-    card.innerHTML = `<div class="card-head"><h2>Kim ne değiştirdi (tüm kullanıcılar)</h2></div>` + (rows.map(r => `<div class="list-item"><div class="grow">
+    card.innerHTML = `<div class="card-head"><h2>Son 5 değişiklik (tüm kullanıcılar)</h2></div>` + (rows.map(r => `<div class="list-item"><div class="grow">
       <b>${TABLE_LABEL[r.table_name] || r.table_name}</b> ${ACTION_LABEL[r.action] || r.action} <span class="muted">${label(r)}</span></div>
       <span class="small muted">${esc(who[r.user_id] || 'sistem')} · ${fmtDateTime(r.at)}</span></div>`).join('') || emptyState('Kayıt yok'));
   } catch (e) { card.innerHTML = `<div class="card-pad err">${esc(e.message)}</div>`; }

@@ -1,8 +1,8 @@
 // App-shell cache so the panel opens without internet (data comes from the IndexedDB cache in cloud.js).
 // Network first, so a new deploy is picked up on the next online visit. Supabase API calls are never cached.
-const CACHE = 'mosso-shell-v3';
+const CACHE = 'mosso-shell-v4';
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-512.png', 'fonts/instrument-sans-latin.woff2', 'fonts/instrument-sans-latin-ext.woff2', SUPABASE_JS];
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-512.png', 'logo.svg', 'mark.svg', 'fonts/instrument-sans-latin.woff2', 'fonts/instrument-sans-latin-ext.woff2', SUPABASE_JS];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

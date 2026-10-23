@@ -21,6 +21,7 @@ const Cloud = (() => {
   let sb = null, hooks = null, user = null, agencyId = null, role = 'staff';
   let meta = freshMeta();
   let pushing = false, pullPromise = null, pullAgain = false, lastError = '';
+  let pulledOnce = false; // until the server has been read once, local default settings must not overwrite it
   let pushTimer, detectTimer, persistTimer, remoteTimer, retryDelay = 2000, channel = null;
 
   function freshMeta() { return { agencyId: null, role: null, lastSync: null, synced: {}, outbox: {}, migrated: false }; }
@@ -94,6 +95,7 @@ const Cloud = (() => {
     let n = 0;
     for (const t of TABLES) {
       const synced = meta.synced[t] ||= {};
+      if (t === 'settings' && !synced.main && !pulledOnce) continue; // fresh device: take the server's settings first
       const seen = new Set();
       for (const [id, obj] of recordsOf(st, t)) {
         seen.add(id);
@@ -214,6 +216,7 @@ const Cloud = (() => {
         }
       }
       meta.lastSync = maxTs || meta.lastSync;
+      pulledOnce = true;
       lastError = '';
     } catch (e) {
       lastError = e.message || String(e);
@@ -253,7 +256,7 @@ const Cloud = (() => {
 
   /* ---------------------------------------------------------------- login screens */
 
-  const brand = '<div class="brand-mark lg">M</div>';
+  const brand = '<img class="auth-logo" src="logo.svg" alt="Mosso Sigorta" width="110" height="90">';
   function authUI(mode, info = '') {
     return new Promise(resolve => {
       let el = document.getElementById('authScreen');
