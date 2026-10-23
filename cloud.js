@@ -241,10 +241,10 @@ const Cloud = (() => {
     const el = document.getElementById('syncStatus');
     if (!el || !user) return;
     const n = pendingCount();
-    let cls = 'ok', text = '✓ Senkronize';
-    if (!navigator.onLine) { cls = 'warn'; text = n ? `⚠ Çevrimdışı · ${n} bekliyor` : '⚠ Çevrimdışı'; }
-    else if (lastError) { cls = 'err'; text = '⚠ Senkronizasyon hatası'; }
-    else if (busy || pushing || n) { cls = 'busy'; text = n ? `⟳ Gönderiliyor (${n})` : '⟳ Eşitleniyor'; }
+    let cls = 'ok', text = 'Senkronize';
+    if (!navigator.onLine) { cls = 'warn'; text = n ? `Çevrimdışı · ${n} bekliyor` : 'Çevrimdışı'; }
+    else if (lastError) { cls = 'err'; text = 'Eşitleme hatası'; }
+    else if (busy || pushing || n) { cls = 'busy'; text = n ? `Gönderiliyor (${n})` : 'Eşitleniyor'; }
     el.className = `sync-pill ${cls}`;
     el.textContent = text;
     el.title = (lastError ? `Hata: ${lastError}\n` : '') + (meta.lastSync ? `Son eşitleme: ${new Date(meta.lastSync).toLocaleString('tr-TR')}` : '');
@@ -344,7 +344,7 @@ const Cloud = (() => {
   async function start(h) {
     hooks = h;
     if (!window.supabase) {
-      document.body.innerHTML = '<div class="empty"><div class="big">📡</div>Bulut bağlantı kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin.</div>';
+      document.body.innerHTML = '<div class="empty">Bulut bağlantı kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin.</div>';
       throw new Error('supabase-js not loaded');
     }
     let recovery = false;

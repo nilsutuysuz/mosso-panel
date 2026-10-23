@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#16324f">
+  <meta name="theme-color" content="#f5f5f4">
   <title>Mosso Panel</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -24,8 +24,8 @@
       <nav id="nav"></nav>
       <div class="sidebar-foot">
         <div class="small" id="whoami" hidden></div>
-        <button class="btn ghost sm" id="lockBtn" type="button">🔒 Kilitle</button>
-        <button class="btn ghost sm" id="logoutBtn" type="button" hidden>↩ Çıkış yap</button>
+        <button class="btn ghost sm" id="lockBtn" type="button" data-icon="lock">Kilitle</button>
+        <button class="btn ghost sm" id="logoutBtn" type="button" hidden data-icon="logout">Çıkış yap</button>
       </div>
     </aside>
 
@@ -37,13 +37,13 @@
         </div>
         <button type="button" id="syncStatus" class="sync-pill" hidden></button>
         <div class="quick-add">
-          <button class="btn primary" id="quickAddBtn" type="button">＋ <span class="hide-sm">Yeni</span></button>
+          <button class="btn primary" id="quickAddBtn" type="button" data-icon="plus"><span class="hide-sm">Yeni</span></button>
           <div class="menu" id="quickAddMenu" hidden>
-            <button data-new="quote">📝 Teklif talebi</button>
-            <button data-new="policy">📄 Poliçe</button>
-            <button data-new="customer">👤 Müşteri</button>
-            <button data-new="claim">🛠️ Hasar dosyası</button>
-            <button data-new="task">✅ Görev</button>
+            <button data-new="quote" data-icon="clipboard">Teklif talebi</button>
+            <button data-new="policy" data-icon="file">Poliçe</button>
+            <button data-new="customer" data-icon="user">Müşteri</button>
+            <button data-new="claim" data-icon="shield">Hasar dosyası</button>
+            <button data-new="task" data-icon="check-square">Görev</button>
           </div>
         </div>
       </header>

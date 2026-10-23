@@ -45,13 +45,13 @@ const DEFAULT_TEMPLATES = [
   { id: 't_quote', kind: 'teklif', name: 'Teklifleri gönder',
     text: 'Merhaba {ad},\n{brans} için hazırladığım teklifler:\n\n{teklifler}\n\nOnaylarsanız hemen poliçeleştirebilirim. Sorunuz olursa buradayım.\n\n{acente}' },
   { id: 't_issued', kind: 'police', name: 'Poliçe düzenlendi',
-    text: 'Merhaba {ad},\n{sirket} {brans} poliçeniz düzenlendi ✅\nPoliçe no: {policeno}\nBitiş: {bitis}\nPrim: {prim}\n\nPoliçe belgesini ayrıca iletiyorum. Hayırlı olsun!\n{acente}' },
+    text: 'Merhaba {ad},\n{sirket} {brans} poliçeniz düzenlendi.\nPoliçe no: {policeno}\nBitiş: {bitis}\nPrim: {prim}\n\nPoliçe belgesini ayrıca iletiyorum. Hayırlı olsun!\n{acente}' },
   { id: 't_claim', kind: 'hasar', name: 'Hasar durumu',
     text: 'Merhaba {ad},\n{dosya} numaralı hasar dosyanızın güncel durumu: {durum}.\nGelişmeleri size bildirmeye devam edeceğim.\n\n{acente}' },
   { id: 't_pay', kind: 'tahsilat', name: 'Taksit hatırlatma',
     text: 'Merhaba {ad},\n{brans} poliçenizin {vade} vadeli {tutar} tutarındaki taksitini hatırlatmak istedim.\n\nTeşekkürler,\n{acente}' },
   { id: 't_bday', kind: 'dogumgunu', name: 'Doğum günü',
-    text: 'Merhaba {ad}, doğum gününüzü kutlar, sağlıklı ve mutlu bir yıl dilerim 🎉\n{acente}' },
+    text: 'Merhaba {ad}, doğum gününüzü kutlar, sağlıklı ve mutlu bir yıl dilerim.\n{acente}' },
   { id: 't_gen', kind: 'genel', name: 'Boş mesaj', text: 'Merhaba {ad},\n\n' },
 ];
 
@@ -118,6 +118,43 @@ function download(name, content, type = 'text/csv;charset=utf-8') {
   a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+
+/* Outline icons, 24px grid, drawn with currentColor at a 1.6 stroke (one set everywhere). */
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9v12h13V9"/><path d="M10 21v-6h4v6"/>',
+  repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  clipboard: '<rect x="8" y="2.5" width="8" height="4" rx="1"/><path d="M16 4.5h2a2 2 0 0 1 2 2V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/><path d="M8.5 12h7M8.5 16h5"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+  file: '<path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5"/><path d="M8.5 13h7M8.5 17h5"/>',
+  shield: '<path d="M12 21.5s7.5-3.5 7.5-9.5V5.5L12 2.5l-7.5 3V12c0 6 7.5 9.5 7.5 9.5z"/>',
+  card: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6.5 15h4"/>',
+  'check-square': '<path d="m9 11.5 3 3 9-9.5"/><path d="M20.5 12v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H16"/>',
+  chart: '<path d="M3.5 3.5v17h17"/><path d="M8 16v-4M12.5 16V8M17 16V5.5"/>',
+  sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1.5 14h5M9.5 8h5M17.5 16h5"/>',
+  lock: '<rect x="4" y="11" width="16" height="10.5" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
+  logout: '<path d="M9 21H5.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H9"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4.3-4.3"/>',
+  message: '<path d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.5z"/>',
+  phone: '<path d="M21.5 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 1.6 4.2 2 2 0 0 1 3.6 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.4 2.1L7.6 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+  pencil: '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+  paperclip: '<path d="m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/>',
+  trash: '<path d="M3.5 6h17M9 6V4h6v2M18.5 6l-.9 14a2 2 0 0 1-2 1.9H8.4a2 2 0 0 1-2-1.9L5.5 6"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  chevron: '<path d="m9 18 6-6-6-6"/>',
+  menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4.5a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2H13a2 2 0 0 1 2 2V5"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  note: '<path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5M8 9h8M8 13h4"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 16.5v-5M12 8h.01"/>',
+  alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  archive: '<rect x="2.5" y="3.5" width="19" height="5" rx="1"/><path d="M4.5 8.5V19a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5M10 12.5h4"/>',
+};
+const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
 /* ============================== Storage ============================== */
 
@@ -288,7 +325,7 @@ function openModal({ title, body, foot = '', wide = false, onMount }) {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-    <div class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Kapat">✕</button></div>
+    <div class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Kapat">${icon('x')}</button></div>
     <div class="modal-body">${body}</div>${foot ? `<div class="modal-foot">${foot}</div>` : ''}</div>`;
   $('#modalRoot').appendChild(bg);
   const close = () => bg.remove();
@@ -315,8 +352,8 @@ const opts = (list, sel) => list.map(o => { const [v, l] = Array.isArray(o) ? o 
 const companyList = cur => { const l = [...state.settings.companies]; if (cur && !l.includes(cur)) l.unshift(cur); return l; };
 const field = (label, input, cls = '') => `<label class="f ${cls}"><span>${label}</span>${input}</label>`;
 const formData = form => Object.fromEntries(new FormData(form).entries());
-const emptyState = (icon, text, extra = '') => `<div class="empty"><div class="big">${icon}</div>${text}${extra ? `<div class="mt">${extra}</div>` : ''}</div>`;
-const waBtn = (attrs, label = 'WhatsApp', cls = 'sm') => `<button class="btn wa ${cls}" data-act="wa" ${attrs}>💬 ${label}</button>`;
+const emptyState = (text, extra = '') => `<div class="empty"><p>${text}</p>${extra ? `<div class="empty-actions">${extra}</div>` : ''}</div>`;
+const waBtn = (attrs, label = 'WhatsApp', cls = 'sm') => `<button class="btn wa ${cls}" data-act="wa" ${attrs}${label ? '' : ' aria-label="WhatsApp mesajı" title="WhatsApp mesajı"'}>${icon('message')}${label}</button>`;
 
 /* ============================== Routing ============================== */
 
@@ -327,20 +364,20 @@ const ui = { // per-view filter state kept across re-renders
 };
 
 const ROUTES = [
-  { path: 'dashboard', label: 'Ana Sayfa', icon: '🏠', view: viewDashboard, mobile: true },
-  { path: 'renewals', label: 'Yenilemeler', icon: '🔁', view: viewRenewals, mobile: true,
+  { path: 'dashboard', label: 'Ana Sayfa', icon: 'home', view: viewDashboard, mobile: true },
+  { path: 'renewals', label: 'Yenilemeler', icon: 'repeat', view: viewRenewals, mobile: true,
     badge: () => renewalList().filter(r => r.days <= 7).length },
-  { path: 'quotes', label: 'Teklifler', icon: '📝', view: viewQuotes, mobile: true,
+  { path: 'quotes', label: 'Teklifler', icon: 'clipboard', view: viewQuotes, mobile: true,
     badge: () => state.quotes.filter(q => OPEN_STAGES.includes(q.stage) && q.followUp && q.followUp <= todayStr()).length },
-  { path: 'customers', label: 'Müşteriler', icon: '👥', view: viewCustomers, mobile: true },
-  { path: 'policies', label: 'Poliçeler', icon: '📄', view: viewPolicies },
-  { path: 'claims', label: 'Hasarlar', icon: '🛠️', view: viewClaims },
-  { path: 'collections', label: 'Tahsilat', icon: '💳', view: viewCollections,
+  { path: 'customers', label: 'Müşteriler', icon: 'users', view: viewCustomers, mobile: true },
+  { path: 'policies', label: 'Poliçeler', icon: 'file', view: viewPolicies },
+  { path: 'claims', label: 'Hasarlar', icon: 'shield', view: viewClaims },
+  { path: 'collections', label: 'Tahsilat', icon: 'card', view: viewCollections,
     badge: () => installmentList().filter(x => !x.inst.paid && x.days < 0).length },
-  { path: 'tasks', label: 'Görevler', icon: '✅', view: viewTasks,
+  { path: 'tasks', label: 'Görevler', icon: 'check-square', view: viewTasks,
     badge: () => state.tasks.filter(t => !t.done && t.due && t.due <= todayStr()).length },
-  { path: 'reports', label: 'Raporlar', icon: '📊', view: viewReports, ownerOnly: true },
-  { path: 'settings', label: 'Ayarlar & Veri', icon: '⚙️', view: viewSettings },
+  { path: 'reports', label: 'Raporlar', icon: 'chart', view: viewReports, ownerOnly: true },
+  { path: 'settings', label: 'Ayarlar & Veri', icon: 'sliders', view: viewSettings },
 ];
 const visibleRoutes = () => ROUTES.filter(r => !r.ownerOnly || isOwner());
 
@@ -351,11 +388,11 @@ function currentRoute() {
 
 function renderNav(active) {
   const badge = r => { const n = r.badge?.() || 0; return n ? `<span class="badge">${n}</span>` : ''; };
-  $('#nav').innerHTML = visibleRoutes().map(r => `<a href="#/${r.path}" class="${r === active ? 'active' : ''}"><span>${r.icon}</span>${r.label}${badge(r)}</a>`).join('');
+  $('#nav').innerHTML = visibleRoutes().map(r => `<a href="#/${r.path}" class="${r === active ? 'active' : ''}">${icon(r.icon)}<span class="nav-label">${r.label}</span>${badge(r)}</a>`).join('');
   const isMore = !active.mobile;
   $('#bottomNav').innerHTML = ROUTES.filter(r => r.mobile).map(r =>
-    `<a href="#/${r.path}" class="${r === active ? 'active' : ''}"><span class="ic">${r.icon}</span>${r.label.split(' ')[0]}${badge(r)}</a>`).join('') +
-    `<a href="#" data-act="moreMenu" class="${isMore ? 'active' : ''}"><span class="ic">☰</span>Menü</a>`;
+    `<a href="#/${r.path}" class="${r === active ? 'active' : ''}"><span class="ic">${icon(r.icon)}</span>${r.label.split(' ')[0]}${badge(r)}</a>`).join('') +
+    `<a href="#" data-act="moreMenu" class="${isMore ? 'active' : ''}"><span class="ic">${icon('menu')}</span>Menü</a>`;
   $('#brandName').textContent = state.settings.agencyName || 'Mosso Sigorta';
 }
 
@@ -366,6 +403,7 @@ function render() {
   renderNav(route);
   const view = $('#view');
   const y = window.scrollY;
+  view.classList.toggle('enter', render.lastPath !== location.hash); // animate arrivals, not re-renders
   route.view(view, id);
   if (render.lastPath === location.hash) window.scrollTo(0, y); else window.scrollTo(0, 0);
   render.lastPath = location.hash;
@@ -401,7 +439,7 @@ const ACTIONS = {
   },
   moreMenu: () => {
     const m = openModal({ title: 'Menü', body: `<div class="card">${visibleRoutes().map(r =>
-      `<a class="list-item" href="#/${r.path}" style="color:inherit"><span>${r.icon}</span><div class="grow title">${r.label}</div>›</a>`).join('')}</div>` });
+      `<a class="list-item" href="#/${r.path}" style="color:inherit">${icon(r.icon)}<div class="grow title">${r.label}</div>${icon('chevron')}</a>`).join('')}</div>` });
     m.el.addEventListener('click', e => { if (e.target.closest('a')) m.close(); });
   },
   loadDemo: async () => { if (!state.customers.length || await confirmBox('Demo verisi mevcut verilerin yanına eklenecek. Devam?', 'Ekle', false)) { seedDemo(); commit('Demo verisi yüklendi'); toast('Demo verisi yüklendi'); } },
@@ -466,7 +504,7 @@ function openComposer(o) {
       ${field('Telefon', `<input id="cPhone" value="${esc(phone)}" inputmode="tel" placeholder="05xx xxx xx xx">`)}
       ${field('Mesaj', `<textarea id="cText" rows="10">${esc(fillTemplate(tpl.text, ctx))}</textarea>`, 'full')}
     </div><p class="muted small mt">Mesaj WhatsApp'ta hazır açılır, siz gönder tuşuna basarsınız. Gönderim müşterinin geçmişine kaydedilir.</p>`,
-    foot: `<button class="btn" id="cCopy">📋 Kopyala</button><span class="spacer"></span><button class="btn" data-close>Vazgeç</button><button class="btn wa" id="cSend">💬 WhatsApp'ta aç</button>`,
+    foot: `<button class="btn" id="cCopy">${icon('copy')}Kopyala</button><span class="spacer"></span><button class="btn" data-close>Vazgeç</button><button class="btn wa" id="cSend">${icon('message')}WhatsApp'ta aç</button>`,
     onMount(el, close) {
       $('#cTpl', el).onchange = e => { $('#cText', el).value = fillTemplate(tpls.find(t => t.id === e.target.value).text, ctx); };
       const record = () => {
@@ -519,14 +557,14 @@ function viewDashboard(view) {
     banners += `<div class="banner info"><div><b>Hoş geldiniz!</b> Başlamak için mevcut Excel listenizi içe aktarın, ya da sistemi tanımak için demo verisi yükleyin.</div>
       <div class="actions"><button class="btn sm" data-act="loadDemo">Demo verisi yükle</button><button class="btn primary sm" data-act="importCsv">Excel/CSV içe aktar</button></div></div>`;
   } else if (!Cloud.enabled && (backupDays === null || backupDays > 7)) {
-    banners += `<div class="banner warn"><div>⚠️ ${backupDays === null ? 'Henüz yedek almadınız.' : `Son yedek ${backupDays} gün önce alındı.`} Verileriniz yalnızca bu cihazda duruyor.</div>
+    banners += `<div class="banner warn"><div class="hstack">${icon('alert')}${backupDays === null ? 'Henüz yedek almadınız.' : `Son yedek ${backupDays} gün önce alındı.`} Verileriniz yalnızca bu cihazda duruyor.</div>
       <div class="actions"><button class="btn sm" data-act="backup">Şimdi yedekle</button></div></div>`;
   }
 
   view.innerHTML = `
-    <div class="page-head"><div><h1>${hello}${s.ownerName ? ', ' + esc(s.ownerName.split(' ')[0]) : ''} 👋</h1>
+    <div class="page-head"><div><h1>${hello}${s.ownerName ? ', ' + esc(s.ownerName.split(' ')[0]) : ''}</h1>
       <div class="muted">${new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
-      <div class="actions"><button class="btn primary" data-act="newQuote">＋ Teklif talebi</button><button class="btn" data-act="newPolicy">＋ Poliçe</button></div></div>
+      <div class="actions"><button class="btn primary" data-act="newQuote">${icon('plus')}Teklif talebi</button><button class="btn" data-act="newPolicy">${icon('plus')}Poliçe</button></div></div>
     ${banners}
     <div class="grid kpis">
       <a class="card kpi ${ren.some(r => r.days < 0) ? 'alert' : ''}" href="#/renewals"><div class="label">Yenileme (30 gün)</div><div class="value">${ren30.length}</div><div class="sub">${ren.filter(r => r.days < 0).length} tanesi süresi geçmiş</div></a>
@@ -537,33 +575,33 @@ function viewDashboard(view) {
     </div>
     <div class="grid two">
       <div class="card">
-        <div class="card-head"><h2>🔁 Yaklaşan yenilemeler</h2><div class="actions"><a class="btn sm ghost" href="#/renewals">Tümü ›</a></div></div>
+        <div class="card-head"><h2>Yaklaşan yenilemeler</h2><div class="actions"><a class="btn sm ghost" href="#/renewals">Tümü ›</a></div></div>
         ${ren.filter(r => r.days <= 15).slice(0, 8).map(r => `
           <div class="list-item click" data-open="openPolicy:${r.p.id}">
             <div class="grow"><div class="title">${esc(r.c?.name || '—')}</div>
               <div class="meta">${esc(r.p.branch)} · ${esc(r.p.company || '')} ${r.p.subject ? '· ' + esc(r.p.subject) : ''}${r.p.lastContactAt ? ` · <span class="badge teal">${fmtDate(r.p.lastContactAt)} yazıldı</span>` : ''}</div></div>
             ${daysBadge(r.days)}
             ${waBtn(`data-pol="${r.p.id}" data-kind="yenileme"`, '', 'xs')}
-          </div>`).join('') || emptyState('🎉', '15 gün içinde biten poliçe yok')}
+          </div>`).join('') || emptyState('15 gün içinde biten poliçe yok')}
       </div>
       <div class="card">
-        <div class="card-head"><h2>📝 Takip edilecek teklifler</h2><div class="actions"><a class="btn sm ghost" href="#/quotes">Tümü ›</a></div></div>
+        <div class="card-head"><h2>Takip edilecek teklifler</h2><div class="actions"><a class="btn sm ghost" href="#/quotes">Tümü ›</a></div></div>
         ${followQ.slice(0, 8).map(q => `
           <div class="list-item click" data-open="openQuote:${q.id}">
             <div class="grow"><div class="title">${esc(quoteName(q))}</div>
               <div class="meta">${esc(q.branch)} · ${STAGE_LABEL[q.stage]} · ${esc(q.source || '')}</div></div>
             ${q.followUp ? daysBadge(daysUntil(q.followUp)) : '<span class="badge amber">Yeni</span>'}
             ${waBtn(`data-quote="${q.id}"`, '', 'xs')}
-          </div>`).join('') || emptyState('✨', 'Bugün takip edilecek teklif yok')}
+          </div>`).join('') || emptyState('Bugün takip edilecek teklif yok')}
       </div>
       <div class="card">
-        <div class="card-head"><h2>✅ Bugünün görevleri</h2><div class="actions"><button class="btn sm" data-act="newTask">＋ Görev</button></div></div>
-        ${tasks.slice(0, 8).map(taskRow).join('') || emptyState('☕', 'Bugün için görev yok')}
+        <div class="card-head"><h2>Bugünün görevleri</h2><div class="actions"><button class="btn sm" data-act="newTask">${icon('plus')}Görev</button></div></div>
+        ${tasks.slice(0, 8).map(taskRow).join('') || emptyState('Bugün için görev yok')}
       </div>
       <div class="card">
-        <div class="card-head"><h2>💳 Tahsilat (7 gün)</h2><div class="actions"><a class="btn sm ghost" href="#/collections">Tümü ›</a></div></div>
-        ${instSoon.slice(0, 6).map(instRow).join('') || emptyState('👌', 'Yaklaşan ya da geciken taksit yok')}
-        ${bdays.length ? `<div class="card-head" style="border-top:1px solid var(--line)"><h2>🎂 Doğum günleri</h2></div>
+        <div class="card-head"><h2>Tahsilat, 7 gün</h2><div class="actions"><a class="btn sm ghost" href="#/collections">Tümü ›</a></div></div>
+        ${instSoon.slice(0, 6).map(instRow).join('') || emptyState('Yaklaşan ya da geciken taksit yok')}
+        ${bdays.length ? `<div class="card-head" style="border-top:1px solid var(--line)"><h2>Doğum günleri</h2></div>
           ${bdays.map(b => `<div class="list-item"><div class="grow"><div class="title">${esc(b.c.name)}</div>
             <div class="meta">${b.days === 0 ? 'Bugün!' : b.days + ' gün sonra'} · ${fmtDate(b.c.birthDate).slice(0, 5)}</div></div>
             ${waBtn(`data-cust="${b.c.id}" data-kind="dogumgunu"`, 'Kutla', 'xs')}</div>`).join('')}` : ''}
@@ -586,7 +624,7 @@ function instRow(x) {
       <div class="meta">${esc(x.p.branch)} · ${esc(x.p.company || '')} · ${x.i + 1}/${x.p.installments.length}. taksit · vade ${fmtDate(x.inst.due)}</div></div>
     ${x.inst.paid ? `<span class="badge green">Ödendi ${fmtDate(x.inst.paidAt)}</span>` : daysBadge(x.days)}
     ${x.inst.paid ? '' : waBtn(`data-pol="${x.p.id}" data-inst="${x.i}" data-kind="tahsilat"`, '', 'xs')}
-    <button class="btn xs" data-act="markPaid" data-pol="${x.p.id}" data-inst="${x.i}">${x.inst.paid ? 'Geri al' : '✓ Ödendi'}</button>
+    <button class="btn xs" data-act="markPaid" data-pol="${x.p.id}" data-inst="${x.i}">${x.inst.paid ? 'Geri al' : 'Ödendi'}</button>
   </div>`;
 }
 
@@ -621,10 +659,10 @@ function viewRenewals(view) {
             ${waBtn(`data-pol="${r.p.id}" data-kind="yenileme"`, 'Hatırlat', 'xs')}
             ${oq ? `<button class="btn xs" data-act="openQuote" data-id="${oq.id}">Teklif: ${STAGE_LABEL[oq.stage]}</button>`
                  : `<button class="btn xs primary" data-act="startRenewal" data-id="${r.p.id}">Teklif başlat</button>`}
-            <button class="btn xs" data-act="renewedPolicy" data-id="${r.p.id}" title="Yenilendi olarak işaretle">✓</button>
-            <button class="btn xs danger" data-act="lostPolicy" data-id="${r.p.id}" title="Kaybedildi">✕</button>
+            <button class="btn xs" data-act="renewedPolicy" data-id="${r.p.id}" title="Yenilendi olarak işaretle" aria-label="Yenilendi">${icon('check')}</button>
+            <button class="btn xs danger" data-act="lostPolicy" data-id="${r.p.id}" title="Kaybedildi" aria-label="Kaybedildi">${icon('x')}</button>
           </div></td></tr>`; }).join('')}</tbody></table></div></div>`;
-    }).join('') : `<div class="card">${emptyState('🎉', 'Yaklaşan yenileme yok')}</div>`}`;
+    }).join('') : `<div class="card">${emptyState('Yaklaşan yenileme yok')}</div>`}`;
   $('#rBranch').onchange = e => { f.branch = e.target.value; render(); };
 }
 
@@ -665,8 +703,8 @@ function viewQuotes(view) {
   const visible = state.quotes.filter(q => match(q) && (OPEN_STAGES.includes(q.stage) || (q.updatedAt || q.createdAt || '').slice(0, 10) >= cutoff));
 
   view.innerHTML = `
-    <div class="page-head"><div><h1>Teklifler</h1><div class="muted">WhatsApp'tan gelen her talebi buraya kaydedin. Kartları sürükleyerek aşama değiştirin.</div></div>
-      <div class="actions"><button class="btn primary" data-act="newQuote">＋ Teklif talebi</button></div></div>
+    <div class="page-head"><div><h1>Teklifler</h1><div class="muted">${state.quotes.filter(q => OPEN_STAGES.includes(q.stage)).length} açık talep · ${state.quotes.filter(q => OPEN_STAGES.includes(q.stage) && q.followUp && q.followUp <= todayStr()).length} tanesinin takibi bugün</div></div>
+      <div class="actions"><button class="btn primary" data-act="newQuote">${icon('plus')}Teklif talebi</button></div></div>
     <div class="filters"><input type="search" id="qSearch" placeholder="İsim, telefon, plaka…" value="${esc(f.q)}">
       <select id="qBranch"><option value="">Tüm branşlar</option>${opts(BRANCHES, f.branch)}</select></div>
     <div class="kanban">${QUOTE_STAGES.map(([key, label]) => {
@@ -714,7 +752,7 @@ function openQuoteForm(id, preset = {}, convertNow = false) {
     <td><input list="compList" class="oc" value="${esc(o.company || '')}" placeholder="Şirket"></td>
     <td><input class="op" type="number" step="0.01" min="0" value="${esc(o.premium || '')}" placeholder="Prim ₺"></td>
     <td><input class="on" value="${esc(o.note || '')}" placeholder="Not (muafiyet, teminat…)"></td>
-    <td><button type="button" class="icon-btn rm" aria-label="Sil">✕</button></td></tr>`;
+    <td><button type="button" class="icon-btn rm" aria-label="Sil">${icon('x')}</button></td></tr>`;
 
   const m = openModal({
     title: id ? `Teklif – ${quoteName(q)}` : 'Yeni teklif talebi', wide: true,
@@ -729,15 +767,15 @@ function openQuoteForm(id, preset = {}, convertNow = false) {
       ${field('Aşama', `<select name="stage">${opts(QUOTE_STAGES, q.stage)}</select>`)}
       ${field('Kayıp nedeni', `<select name="lostReason"><option value="">—</option>${opts(LOST_REASONS, q.lostReason)}</select>`, q.stage === 'kaybedildi' ? '' : 'lost-hide')}
       ${field('Talep detayı (WhatsApp mesajını buraya yapıştırabilirsiniz)', `<textarea name="details" rows="3" placeholder="Araç: 2019 Fiat Egea, ruhsat sahibi kendisi, hasarsızlık 4. kademe…">${esc(q.details || '')}</textarea>`, 'full')}
-      <div class="full"><div class="hstack" style="justify-content:space-between"><b>Şirket teklifleri</b><button type="button" class="btn sm" id="addOffer">＋ Teklif satırı</button></div>
-        <div class="table-wrap"><table class="offers-table"><thead><tr><th title="Seçilen">✓</th><th>Şirket</th><th>Prim</th><th>Not</th><th></th></tr></thead>
+      <div class="full"><div class="hstack" style="justify-content:space-between"><b>Şirket teklifleri</b><button type="button" class="btn sm" id="addOffer">${icon('plus')}Teklif satırı</button></div>
+        <div class="table-wrap"><table class="offers-table"><thead><tr><th title="Seçilen"><span class="sr-only">Seçilen</span></th><th>Şirket</th><th>Prim</th><th>Not</th><th></th></tr></thead>
         <tbody id="offerRows">${(q.offers.length ? q.offers : [{}]).map(offerRow).join('')}</tbody></table></div>
-        <p class="muted small">✓ işaretli teklif poliçeleştirilir. İşaret yoksa en ucuz teklif seçilir.</p></div>
+        <p class="muted small">Seçili teklif poliçeleştirilir. İşaret yoksa en ucuz teklif seçilir.</p></div>
       ${history.length ? `<div class="full"><b>Mesaj geçmişi</b><div class="timeline" style="padding:0">${history.map(noteItem).join('')}</div></div>` : ''}
     </form>`,
     foot: `${id ? '<button class="btn danger" id="qDel">Sil</button>' : ''}<span class="spacer"></span>
-      <button class="btn wa" id="qWa">💬 WhatsApp</button>
-      ${q.stage !== 'kazanildi' ? '<button class="btn" id="qConvert">📄 Poliçeleştir</button>' : (q.policyId ? `<button class="btn" data-act="openPolicy" data-id="${q.policyId}">Poliçeyi aç</button>` : '')}
+      <button class="btn wa" id="qWa">${icon('message')}WhatsApp</button>
+      ${q.stage !== 'kazanildi' ? '<button class="btn" id="qConvert">' + icon('file') + 'Poliçeleştir</button>' : (q.policyId ? `<button class="btn" data-act="openPolicy" data-id="${q.policyId}">Poliçeyi aç</button>` : '')}
       <button class="btn primary" id="qSave">Kaydet</button>`,
     onMount(el, close) {
       const form = $('#qf', el);
@@ -808,7 +846,7 @@ function viewCustomers(view, id) {
   const f = ui.customers;
   view.innerHTML = `
     <div class="page-head"><div><h1>Müşteriler</h1><div class="muted">${state.customers.length} kayıt</div></div>
-      <div class="actions"><button class="btn" data-act="importCsv">⬆ İçe aktar</button><button class="btn primary" data-act="newCustomer">＋ Müşteri</button></div></div>
+      <div class="actions"><button class="btn" data-act="importCsv">${icon('upload')}İçe aktar</button><button class="btn primary" data-act="newCustomer">${icon('plus')}Müşteri</button></div></div>
     <div class="filters"><input type="search" id="cSearch" placeholder="İsim, telefon, TC/VKN, e-posta, etiket…" value="${esc(f.q)}">
       <select id="cType"><option value="">Tümü</option>${opts([['bireysel', 'Bireysel'], ['kurumsal', 'Kurumsal']], f.type)}</select></div>
     <div class="card"><div class="table-wrap" id="cList"></div></div>`;
@@ -829,7 +867,7 @@ function viewCustomers(view, id) {
           <td class="hide-mobile">${next ? fmtDate(next) + ' ' + (daysUntil(next) <= 30 ? daysBadge(daysUntil(next)) : '') : '—'}</td>
           <td><div class="row-actions">${c.phone ? waBtn(`data-cust="${c.id}"`, '', 'xs') : ''}</div></td></tr>`;
       }).join('')}</tbody></table>${rows.length > 300 ? `<p class="muted small" style="padding:10px 12px">İlk 300 kayıt gösteriliyor, aramayı daraltın.</p>` : ''}`
-      : emptyState('👥', state.customers.length ? 'Eşleşen müşteri yok' : 'Henüz müşteri yok', '<button class="btn primary" data-act="newCustomer">＋ Müşteri ekle</button>');
+      : emptyState(state.customers.length ? 'Eşleşen müşteri yok' : 'Henüz müşteri yok', '<button class="btn primary" data-act="newCustomer">' + icon('plus') + 'Müşteri ekle</button>');
   };
   list();
   $('#cSearch').oninput = e => { f.q = e.target.value; list(); };
@@ -837,13 +875,13 @@ function viewCustomers(view, id) {
 }
 
 function noteItem(n) {
-  const ico = { whatsapp: '💬', call: '📞', note: '🗒️', system: '⚙️' }[n.kind] || '🗒️';
+  const ico = icon({ whatsapp: 'message', call: 'phone', note: 'note', system: 'info' }[n.kind] || 'note');
   return `<div class="tl-item"><div class="tl-ico ${n.kind}">${ico}</div><div class="grow"><div class="small muted">${fmtDateTime(n.at)}</div><div class="tl-body">${esc(n.text)}</div></div></div>`;
 }
 
 function viewCustomerDetail(view, id) {
   const c = byId('customers', id);
-  if (!c) { view.innerHTML = emptyState('🤷', 'Müşteri bulunamadı', '<a class="btn" href="#/customers">Müşterilere dön</a>'); return; }
+  if (!c) { view.innerHTML = emptyState('Müşteri bulunamadı', '<a class="btn" href="#/customers">Müşterilere dön</a>'); return; }
   const pols = state.policies.filter(p => p.customerId === id).sort((a, b) => (b.endDate || '').localeCompare(a.endDate || ''));
   const quotes = state.quotes.filter(q => q.customerId === id).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   const claims = state.claims.filter(x => x.customerId === id);
@@ -859,21 +897,21 @@ function viewCustomerDetail(view, id) {
       ${pols.map(p => `<tr class="click" data-open="openPolicy:${p.id}"><td><b>${esc(p.branch)}</b><div class="small muted">${esc(p.policyNo || '')}</div></td><td>${esc(p.company || '')}</td>
         <td class="hide-mobile">${esc(p.subject || '')}</td><td>${fmtDate(p.endDate)} ${policyStatus(p) === 'aktif' && daysUntil(p.endDate) <= 30 ? daysBadge(daysUntil(p.endDate)) : ''}</td>
         <td class="num">${money(p.premium)}</td><td>${statusBadge(p)}</td></tr>`).join('')}</tbody></table></div>`
-    : emptyState('📄', 'Poliçe yok', `<button class="btn primary" data-act="newPolicy" data-cust="${id}">＋ Poliçe ekle</button>`);
+    : emptyState('Poliçe yok', `<button class="btn primary" data-act="newPolicy" data-cust="${id}">${icon('plus')}Poliçe ekle</button>`);
   if (tab === 'quotes') body = quotes.map(q => `<div class="list-item click" data-open="openQuote:${q.id}"><div class="grow"><div class="title">${esc(q.branch)} ${q.subject ? '· ' + esc(q.subject) : ''}</div>
       <div class="meta">${fmtDate((q.createdAt || '').slice(0, 10))} · ${esc(q.source || '')} ${q.lostReason ? '· ' + esc(q.lostReason) : ''}</div></div>
       <span class="badge ${q.stage === 'kazanildi' ? 'green' : q.stage === 'kaybedildi' ? '' : 'amber'}">${STAGE_LABEL[q.stage]}</span></div>`).join('')
-    || emptyState('📝', 'Teklif yok', `<button class="btn primary" data-act="newQuote" data-cust="${id}">＋ Teklif talebi</button>`);
+    || emptyState('Teklif yok', `<button class="btn primary" data-act="newQuote" data-cust="${id}">${icon('plus')}Teklif talebi</button>`);
   if (tab === 'claims') body = claims.map(x => `<div class="list-item click" data-open="openClaim:${x.id}"><div class="grow"><div class="title">${esc(x.fileNo || 'Dosya no yok')} · ${esc(byId('policies', x.policyId)?.branch || '')}</div>
       <div class="meta">${fmtDate(x.date)} · ${esc((x.description || '').slice(0, 80))}</div></div><span class="badge ${x.status === 'kapandi' ? 'green' : 'amber'}">${CLAIM_LABEL[x.status]}</span></div>`).join('')
-    || emptyState('🛠️', 'Hasar dosyası yok', `<button class="btn" data-act="newClaim" data-cust="${id}">＋ Hasar dosyası</button>`);
+    || emptyState('Hasar dosyası yok', `<button class="btn" data-act="newClaim" data-cust="${id}">${icon('plus')}Hasar dosyası</button>`);
   if (tab === 'notes') body = `<form id="noteForm" class="card-pad" style="border-bottom:1px solid var(--line)">
       <textarea name="text" rows="3" placeholder="Not ekleyin – ör. WhatsApp konuşmasındaki önemli bilgiyi buraya yapıştırın" required></textarea>
-      <div class="hstack mt"><select name="kind" style="width:auto">${opts([['note', '🗒️ Not'], ['call', '📞 Telefon görüşmesi'], ['whatsapp', '💬 WhatsApp yazışması']])}</select>
+      <div class="hstack mt"><select name="kind" style="width:auto">${opts([['note', 'Not'], ['call', 'Telefon görüşmesi'], ['whatsapp', 'WhatsApp yazışması']])}</select>
       <button class="btn primary" style="margin-left:auto">Ekle</button></div></form>
       <div class="timeline">${notes.map(noteItem).join('') || '<div class="empty">Henüz not yok</div>'}</div>`;
   if (tab === 'files') body = `<div class="card-pad" id="custFiles"></div>`;
-  if (tab === 'tasks') body = `${tasks.map(taskRow).join('') || emptyState('✅', 'Açık görev yok')}<div class="card-pad"><button class="btn" data-act="newTask" data-cust="${id}">＋ Görev ekle</button></div>`;
+  if (tab === 'tasks') body = `${tasks.map(taskRow).join('') || emptyState('Açık görev yok')}<div class="card-pad"><button class="btn" data-act="newTask" data-cust="${id}">${icon('plus')}Görev ekle</button></div>`;
 
   view.innerHTML = `
     <div class="mb"><a href="#/customers" class="muted">‹ Müşteriler</a></div>
@@ -884,8 +922,8 @@ function viewCustomerDetail(view, id) {
           ${c.kvkk ? '<span class="badge green">KVKK onayı var</span>' : '<span class="badge amber">KVKK onayı yok</span>'}
           ${active.length ? `<span class="badge teal">${active.length} aktif poliçe · ${money(active.reduce((a, p) => a + num(p.premium), 0))}</span>` : ''}
           ${(c.tags || '').split(',').filter(t => t.trim()).map(t => `<span class="badge">${esc(t.trim())}</span>`).join('')}</div></div>
-        <div class="hstack">${c.phone ? `${waBtn(`data-cust="${id}"`)}<a class="btn sm" href="tel:${esc(c.phone)}">📞 Ara</a>` : ''}
-          <button class="btn sm" data-act="editCustomer" data-id="${id}">✏️ Düzenle</button></div>
+        <div class="hstack">${c.phone ? `${waBtn(`data-cust="${id}"`)}<a class="btn sm" href="tel:${esc(c.phone)}">${icon('phone')}Ara</a>` : ''}
+          <button class="btn sm" data-act="editCustomer" data-id="${id}">${icon('pencil')}Düzenle</button></div>
       </div>
       <div class="kv mt">
         <div><span>Telefon</span><b>${esc(fmtPhone(c.phone)) || '—'}</b></div>
@@ -896,8 +934,8 @@ function viewCustomerDetail(view, id) {
         <div><span>Adres</span><b>${esc(c.address) || '—'}</b></div>
         ${c.notes ? `<div style="grid-column:1/-1"><span>Not</span><b style="white-space:pre-wrap">${esc(c.notes)}</b></div>` : ''}
       </div>
-      <div class="hstack mt"><button class="btn sm" data-act="newQuote" data-cust="${id}">＋ Teklif</button><button class="btn sm" data-act="newPolicy" data-cust="${id}">＋ Poliçe</button>
-        <button class="btn sm" data-act="newClaim" data-cust="${id}">＋ Hasar</button><button class="btn sm" data-act="newTask" data-cust="${id}">＋ Görev</button></div>
+      <div class="hstack mt"><button class="btn sm" data-act="newQuote" data-cust="${id}">${icon('plus')}Teklif</button><button class="btn sm" data-act="newPolicy" data-cust="${id}">${icon('plus')}Poliçe</button>
+        <button class="btn sm" data-act="newClaim" data-cust="${id}">${icon('plus')}Hasar</button><button class="btn sm" data-act="newTask" data-cust="${id}">${icon('plus')}Görev</button></div>
     </div>
     <div class="tabs">${tabs.map(([k, l]) => `<button class="${k === tab ? 'active' : ''}" data-act="setTab" data-tab="${k}">${l}</button>`).join('')}</div>
     <div class="card">${body}</div>`;
@@ -961,10 +999,10 @@ async function renderFiles(box, { customerId, policyId, claimId }) {
   catch (e) { box.innerHTML = '<p class="err">Belge deposu açılamadı (gizli pencere olabilir).</p>'; return; }
   files.sort((a, b) => b.at.localeCompare(a.at));
   const label = f => { const p = byId('policies', f.policyId); return p ? `${p.branch} poliçesi` : f.claimId ? 'Hasar dosyası' : 'Müşteri'; };
-  box.innerHTML = `<div class="files">${files.map(f => `<div class="file-row"><span>${/pdf/.test(f.mime) ? '📕' : /image/.test(f.mime) ? '🖼️' : '📎'}</span>
+  box.innerHTML = `<div class="files">${files.map(f => `<div class="file-row"><span class="file-ico">${icon(/image/.test(f.mime) ? 'image' : 'file')}</span>
       <div class="grow" title="${esc(f.name)}">${esc(f.name)}<div class="small muted">${label(f)} · ${(f.size / 1024).toFixed(0)} KB · ${fmtDate(f.at.slice(0, 10))}</div></div>
       <button type="button" class="btn xs" data-f-open="${f.id}">Aç</button><button type="button" class="btn xs danger" data-f-del="${f.id}">Sil</button></div>`).join('') || '<p class="muted">Belge yok</p>'}</div>
-    <label class="btn sm mt" style="cursor:pointer">📎 Belge ekle (PDF, fotoğraf)<input type="file" multiple hidden accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"></label>`;
+    <label class="btn sm mt" style="cursor:pointer">${icon('paperclip')}Belge ekle (PDF, fotoğraf)<input type="file" multiple hidden accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"></label>`;
   $('input[type=file]', box).onchange = async e => {
     let added = 0;
     for (const file of e.target.files) {
@@ -998,7 +1036,7 @@ function viewPolicies(view) {
   const f = ui.policies;
   view.innerHTML = `
     <div class="page-head"><div><h1>Poliçeler</h1><div class="muted">${state.policies.length} kayıt</div></div>
-      <div class="actions"><button class="btn" data-act="importCsv">⬆ İçe aktar</button><button class="btn" id="pExport">⬇ Excel'e aktar</button><button class="btn primary" data-act="newPolicy">＋ Poliçe</button></div></div>
+      <div class="actions"><button class="btn" data-act="importCsv">${icon('upload')}İçe aktar</button><button class="btn" id="pExport">${icon('download')}Excel'e aktar</button><button class="btn primary" data-act="newPolicy">${icon('plus')}Poliçe</button></div></div>
     <div class="filters">
       <input type="search" id="pSearch" placeholder="Müşteri, plaka, poliçe no…" value="${esc(f.q)}">
       <select id="pBranch"><option value="">Tüm branşlar</option>${opts(BRANCHES, f.branch)}</select>
@@ -1027,7 +1065,7 @@ function viewPolicies(view) {
         <td class="num">${money(p.premium)}</td><td class="num hide-mobile">${money(p.commission)}</td><td class="hide-mobile">${statusBadge(p)}</td></tr>`).join('')}
       </tbody><tfoot><tr><td colspan="5"><b>${rows.length} poliçe</b>${rows.length > 300 ? ' (ilk 300 gösteriliyor)' : ''}</td><td class="num"><b>${money(rows.reduce((a, p) => a + num(p.premium), 0))}</b></td>
         <td class="num hide-mobile"><b>${money(rows.reduce((a, p) => a + num(p.commission), 0))}</b></td><td class="hide-mobile"></td></tr></tfoot></table>`
-      : emptyState('📄', 'Eşleşen poliçe yok', state.policies.length ? '' : '<button class="btn primary" data-act="newPolicy">＋ Poliçe ekle</button> <button class="btn" data-act="importCsv">Excel/CSV içe aktar</button>');
+      : emptyState('Eşleşen poliçe yok', state.policies.length ? '' : '<button class="btn primary" data-act="newPolicy">' + icon('plus') + 'Poliçe ekle</button> <button class="btn" data-act="importCsv">Excel/CSV içe aktar</button>');
   };
   list();
   $('#pSearch').oninput = e => { f.q = e.target.value; list(); };
@@ -1064,7 +1102,7 @@ function openPolicyForm(id, preset = {}, onSaved) {
       ${id ? '<div class="full"><b>Belgeler</b><div id="pFiles" class="mt"></div></div>' : '<p class="full muted small">Poliçe PDF\'ini kaydettikten sonra ekleyebilirsiniz.</p>'}
     </form>`,
     foot: `${id ? '<button class="btn danger" id="pDel">Sil</button>' : ''}<span class="spacer"></span>
-      ${id ? `${waBtn(`data-pol="${id}" data-kind="police"`, 'Bilgi gönder')}${policyStatus(p) === 'aktif' || policyStatus(p) === 'bitti' ? `<button class="btn" data-act="startRenewal" data-id="${id}">🔁 Yenileme teklifi</button>` : ''}<button class="btn" data-act="newClaim" data-cust="${p.customerId}" data-pol="${id}">🛠️ Hasar</button>` : ''}
+      ${id ? `${waBtn(`data-pol="${id}" data-kind="police"`, 'Bilgi gönder')}${policyStatus(p) === 'aktif' || policyStatus(p) === 'bitti' ? `<button class="btn" data-act="startRenewal" data-id="${id}">${icon('repeat')}Yenileme teklifi</button>` : ''}<button class="btn" data-act="newClaim" data-cust="${p.customerId}" data-pol="${id}">${icon('shield')}Hasar</button>` : ''}
       <button class="btn primary" id="pSave">Kaydet</button>`,
     onMount(el, close) {
       const form = $('#pf', el);
@@ -1103,7 +1141,7 @@ function openPolicyForm(id, preset = {}, onSaved) {
         if (!id) addNote({ customerId: cust.id, kind: 'system', text: `Poliçe eklendi: ${saved.company || ''} ${saved.branch} ${saved.policyNo ? '#' + saved.policyNo : ''}` });
         close(); commit(id ? '' : `Yeni poliçe: ${cust.name} – ${saved.branch}`); toast('Poliçe kaydedildi');
         if (!id && cust.phone) {
-          openModal({ title: 'Poliçe kaydedildi ✅', body: `<p>${esc(cust.name)} müşterisine poliçe bilgisini WhatsApp'tan gönderelim mi?</p>`,
+          openModal({ title: 'Poliçe kaydedildi', body: `<p>${esc(cust.name)} müşterisine poliçe bilgisini WhatsApp'tan gönderelim mi?</p>`,
             foot: `<span class="spacer"></span><button class="btn" data-close>Şimdi değil</button>${waBtn(`data-pol="${saved.id}" data-kind="police" data-close`, 'Gönder', '')}` });
         }
       };
@@ -1122,14 +1160,14 @@ function viewClaims(view) {
   const rows = state.claims.filter(x => f.status === 'all' || (f.status === 'open' ? x.status !== 'kapandi' : x.status === f.status))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   view.innerHTML = `
-    <div class="page-head"><div><h1>Hasar dosyaları</h1></div><div class="actions"><button class="btn primary" data-act="newClaim">＋ Hasar dosyası</button></div></div>
+    <div class="page-head"><div><h1>Hasar dosyaları</h1></div><div class="actions"><button class="btn primary" data-act="newClaim">${icon('plus')}Hasar dosyası</button></div></div>
     <div class="filters"><select id="clStatus">${opts([['open', 'Açık dosyalar'], ['all', 'Tümü'], ...CLAIM_STAGES], f.status)}</select></div>
     <div class="card"><div class="table-wrap">${rows.length ? `<table class="stack"><thead><tr><th>Müşteri</th><th>Dosya / Poliçe</th><th>Hasar tarihi</th><th class="num hide-mobile">Tutar</th><th>Durum</th><th></th></tr></thead><tbody>
       ${rows.map(x => { const p = byId('policies', x.policyId); return `<tr class="click" data-open="openClaim:${x.id}"><td><b>${esc(custOf(x)?.name || '—')}</b></td>
         <td>${esc(x.fileNo || '—')}<div class="small muted">${esc(p ? `${p.branch} · ${p.company || ''}` : '')}</div></td><td>${fmtDate(x.date)}</td>
         <td class="num hide-mobile">${x.amount ? money(x.amount) : '—'}</td><td><span class="badge ${x.status === 'kapandi' ? 'green' : 'amber'}">${CLAIM_LABEL[x.status]}</span></td>
         <td>${waBtn(`data-claim="${x.id}"`, 'Bilgi ver', 'xs')}</td></tr>`; }).join('')}</tbody></table>`
-      : emptyState('🛠️', 'Hasar dosyası yok')}</div></div>`;
+      : emptyState('Hasar dosyası yok')}</div></div>`;
   $('#clStatus').onchange = e => { f.status = e.target.value; render(); };
 }
 
@@ -1194,7 +1232,7 @@ function viewCollections(view) {
     </div>
     <div class="tabs"><button class="${f.show === 'open' ? 'active' : ''}" id="tOpen">Bekleyen</button><button class="${f.show === 'paid' ? 'active' : ''}" id="tPaid">Ödenenler</button></div>
     ${groups.filter(([, r]) => r.length).map(([t, r]) => `<div class="card mb"><div class="card-head"><h2>${t}</h2><span class="badge">${r.length}</span></div>${r.slice(0, 200).map(instRow).join('')}</div>`).join('')
-      || `<div class="card">${emptyState('💳', 'Kayıt yok. Poliçede ödeme şeklini “Taksitli – acenteye” seçtiğinizde taksitler burada görünür.')}</div>`}`;
+      || `<div class="card">${emptyState('Kayıt yok. Poliçede ödeme şeklini “Taksitli – acenteye” seçtiğinizde taksitler burada görünür.')}</div>`}`;
   $('#tOpen').onclick = () => { f.show = 'open'; render(); };
   $('#tPaid').onclick = () => { f.show = 'paid'; render(); };
 }
@@ -1208,7 +1246,7 @@ function viewTasks(view) {
     <div class="page-head"><h1>Görevler</h1></div>
     <form id="qtask" class="card card-pad mb hstack"><input name="title" placeholder="Hızlı görev ekle – ör. Ahmet Bey'in ruhsatını iste" required style="flex:1;min-width:200px">
       <input type="date" name="due" value="${todayStr()}" style="width:auto"><button class="btn primary">Ekle</button></form>
-    <div class="card mb"><div class="card-head"><h2>Açık</h2><span class="badge">${open.length}</span></div>${open.map(taskRow).join('') || emptyState('🎉', 'Hepsi tamam')}</div>
+    <div class="card mb"><div class="card-head"><h2>Açık</h2><span class="badge">${open.length}</span></div>${open.map(taskRow).join('') || emptyState('Hepsi tamam')}</div>
     ${done.length ? `<div class="card"><div class="card-head"><h2>Tamamlanan (son 20)</h2></div>${done.map(taskRow).join('')}</div>` : ''}`;
   $('#qtask').onsubmit = e => { e.preventDefault(); const d = formData(e.target); upsert('tasks', { title: d.title.trim(), due: d.due, done: false }); commit(); };
 }
@@ -1282,8 +1320,8 @@ function viewReports(view) {
       <div class="card kpi"><div class="label">Teklif dönüşümü</div><div class="value">${conv === null ? '—' : '%' + conv}</div><div class="sub">${won} kazanıldı / ${lostQ.length} kaybedildi</div></div>
       <div class="card kpi"><div class="label">Müşteri</div><div class="value">${state.customers.length}</div><div class="sub">${new Set(state.policies.filter(p => policyStatus(p) === 'aktif').map(p => p.customerId)).size} aktif poliçeli</div></div>
     </div>
-    <div class="card mb"><div class="card-head"><h2>Aylık üretim (son 12 ay)</h2><span class="small muted" style="margin-left:auto">■ prim ■ komisyon</span></div>
-      <div class="bars">${byMonth.map(x => `<div class="bar" title="${x.m}: ${money(x.p)} prim, ${money(x.c)} komisyon">
+    <div class="card mb"><div class="card-head"><h2>Aylık üretim (son 12 ay)</h2><span class="small muted" style="margin-left:auto"><i class="swatch"></i>Prim <i class="swatch c"></i>Komisyon</span></div>
+      <div class="bars">${byMonth.map((x, i) => `<div class="bar" style="--i:${i}" title="${x.m}: ${money(x.p)} prim, ${money(x.c)} komisyon">
         <div style="display:flex;gap:2px;align-items:flex-end;width:100%;justify-content:center;flex:1"><div class="fill" style="height:${x.p / maxM * 100}%"></div><div class="fill c" style="height:${x.c / maxM * 100}%"></div></div>
         <div class="lbl">${MONTHS[+x.m.slice(5) - 1]}</div></div>`).join('')}</div></div>
     <div class="grid two mb">${groupTable('Şirket bazında', group('company'))}${groupTable('Branş bazında', group('branch'))}</div>
@@ -1291,7 +1329,7 @@ function viewReports(view) {
       <div class="card"><div class="card-head"><h2>Talep kaynakları</h2></div><div class="table-wrap"><table><thead><tr><th></th><th class="num">Talep</th><th class="num">Kazanılan</th><th class="num">Oran</th></tr></thead><tbody>
         ${Object.entries(sources).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.n}</td><td class="num">${v.w}</td><td class="num">%${Math.round(v.w / v.n * 100)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Veri yok</td></tr>'}</tbody></table></div></div>
       <div class="card"><div class="card-head"><h2>Kayıp nedenleri</h2></div>
-        ${Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="list-item"><div class="grow">${esc(k)}</div><b>${n}</b></div>`).join('') || emptyState('👍', 'Kayıp yok')}</div>
+        ${Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="list-item"><div class="grow">${esc(k)}</div><b>${n}</b></div>`).join('') || emptyState('Kayıp yok')}</div>
     </div>`;
   $('#rRange').onchange = e => { f.range = e.target.value; render(); };
 }
@@ -1325,21 +1363,21 @@ function viewSettings(view) {
         ? `<p>Verileriniz bulutta saklanıyor ve <b>her gece otomatik yedekleniyor</b> (son 30 gün). İsterseniz ayrıca elle bir kopya indirebilirsiniz.</p>`
         : `<p>Son yedek: <b>${s.lastBackupAt ? fmtDateTime(s.lastBackupAt) : 'hiç alınmadı'}</b>. Haftada bir yedek alıp Google Drive / iCloud'a kaydetmenizi öneririm.</p>`}
       <div class="hstack mt">
-        <button class="btn primary" data-act="backup">⬇ ${Cloud.enabled ? 'Veri kopyası indir' : 'Tam yedek indir (belgeler dahil)'}</button>
-        ${isOwner() ? '<button class="btn" id="restore">⬆ Yedek dosyasından geri yükle</button>' : ''}
+        <button class="btn primary" data-act="backup">${icon('download')}${Cloud.enabled ? 'Veri kopyası indir' : 'Tam yedek indir (belgeler dahil)'}</button>
+        ${isOwner() ? '<button class="btn" id="restore">' + icon('upload') + 'Yedek dosyasından geri yükle</button>' : ''}
       </div>
       <div class="hstack mt">
-        <button class="btn" data-act="importCsv">⬆ Excel/CSV poliçe listesi içe aktar</button>
+        <button class="btn" data-act="importCsv">${icon('upload')}Excel/CSV poliçe listesi içe aktar</button>
         <button class="btn" id="csvTpl">Örnek CSV şablonu</button>
-        <button class="btn" id="expCust">⬇ Müşteriler (Excel)</button>
-        <button class="btn" id="expPol">⬇ Poliçeler (Excel)</button>
+        <button class="btn" id="expCust">${icon('download')}Müşteriler (Excel)</button>
+        <button class="btn" id="expPol">${icon('download')}Poliçeler (Excel)</button>
       </div>
       ${isOwner() ? '<div class="hstack mt"><button class="btn" data-act="loadDemo">Demo verisi yükle</button><button class="btn danger" id="wipe">Tüm verileri sil</button></div>' : ''}
     </div></div>
 
-    <div class="card mb"><div class="card-head"><h2>WhatsApp mesaj şablonları</h2><div class="actions"><button class="btn sm" id="addTpl">＋ Şablon</button></div></div><div class="card-pad">
+    <div class="card mb"><div class="card-head"><h2>WhatsApp mesaj şablonları</h2><div class="actions"><button class="btn sm" id="addTpl">${icon('plus')}Şablon</button></div></div><div class="card-pad">
       <p class="muted small">Kullanılabilir alanlar: {ad} {brans} {sirket} {policeno} {bitis} {konu} {plaka} {prim} {teklifler} {dosya} {durum} {tutar} {vade} {acente}</p>
-      <form id="sfTpl">${s.templates.map(t => `<div class="mt" data-tid="${t.id}"><div class="hstack"><input class="tn" value="${esc(t.name)}" style="flex:1"><button type="button" class="icon-btn tdel" aria-label="Sil">🗑</button></div>
+      <form id="sfTpl">${s.templates.map(t => `<div class="mt" data-tid="${t.id}"><div class="hstack"><input class="tn" value="${esc(t.name)}" style="flex:1"><button type="button" class="icon-btn tdel" aria-label="Şablonu sil">${icon('trash')}</button></div>
         <textarea class="tt" rows="4" style="margin-top:6px">${esc(t.text)}</textarea></div>`).join('')}
         <button class="btn primary mt">Şablonları kaydet</button></form>
     </div></div>
@@ -1353,7 +1391,7 @@ function viewSettings(view) {
     </div>
 
     <div class="card"><div class="card-head"><h2>İşlem geçmişi${Cloud.enabled ? ' (bu cihaz)' : ''}</h2></div>
-      ${state.log.slice(0, 40).map(l => `<div class="list-item"><div class="grow">${esc(l.text)}</div><span class="small muted">${fmtDateTime(l.at)}</span></div>`).join('') || emptyState('📜', 'Henüz işlem yok')}</div>
+      ${state.log.slice(0, 40).map(l => `<div class="list-item"><div class="grow">${esc(l.text)}</div><span class="small muted">${fmtDateTime(l.at)}</span></div>`).join('') || emptyState('Henüz işlem yok')}</div>
     ${Cloud.enabled && isOwner() ? '<div class="card mt" id="auditCard"><div class="card-head"><h2>Kim ne değiştirdi (tüm kullanıcılar)</h2></div><div class="empty">Yükleniyor…</div></div>' : ''}`;
 
   $('#sfAgency').onsubmit = e => { e.preventDefault(); Object.assign(s, formData(e.target)); s.renewalWindow = +s.renewalWindow || 60; commit('Acente bilgileri güncellendi'); toast('Kaydedildi'); };
@@ -1453,7 +1491,7 @@ async function renderMfa() {
       foot: '<span class="spacer"></span><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="mfaVerify">Doğrula ve aç</button>',
       onMount(el, close) {
         $('#mfaVerify', el).onclick = async () => {
-          try { await Cloud.mfa.verify(en.id, $('#mfaCode', el).value.trim()); close(); toast('2FA açıldı ✅'); renderMfa(); }
+          try { await Cloud.mfa.verify(en.id, $('#mfaCode', el).value.trim()); close(); toast('2FA açıldı'); renderMfa(); }
           catch (e) { toast('Kod hatalı, tekrar deneyin', 'err'); }
         };
       },
@@ -1479,7 +1517,7 @@ async function renderAutoBackups() {
   const box = $('#autoBackups'); if (!box) return;
   try {
     const list = await Cloud.backups.list();
-    box.innerHTML = list.length ? `<div class="files">${list.map(f => `<div class="file-row"><span>🗄️</span><div class="grow">${fmtDateTime(f.taken_at)}<div class="small muted">${(f.bytes / 1024).toFixed(0)} KB</div></div>
+    box.innerHTML = list.length ? `<div class="files">${list.map(f => `<div class="file-row"><span class="file-ico">${icon('archive')}</span><div class="grow">${fmtDateTime(f.taken_at)}<div class="small muted">${(f.bytes / 1024).toFixed(0)} KB</div></div>
         <button class="btn xs" data-dl="${f.id}">İndir</button><button class="btn xs danger" data-rs="${f.id}">Geri dön</button></div>`).join('')}</div>
         <p class="muted small mt">Her gece 04:00'te alınır, son 14 gün saklanır.</p>`
       : '<p class="muted">Henüz otomatik yedek yok. İlk yedek bu gece 04:00\'te alınır.</p>';
@@ -1514,7 +1552,7 @@ async function renderAudit() {
     };
     card.innerHTML = `<div class="card-head"><h2>Kim ne değiştirdi (tüm kullanıcılar)</h2></div>` + (rows.map(r => `<div class="list-item"><div class="grow">
       <b>${TABLE_LABEL[r.table_name] || r.table_name}</b> ${ACTION_LABEL[r.action] || r.action} <span class="muted">${label(r)}</span></div>
-      <span class="small muted">${esc(who[r.user_id] || 'sistem')} · ${fmtDateTime(r.at)}</span></div>`).join('') || emptyState('📜', 'Kayıt yok'));
+      <span class="small muted">${esc(who[r.user_id] || 'sistem')} · ${fmtDateTime(r.at)}</span></div>`).join('') || emptyState('Kayıt yok'));
   } catch (e) { card.innerHTML = `<div class="card-pad err">${esc(e.message)}</div>`; }
 }
 
@@ -1816,6 +1854,8 @@ function onRemoteChange() {
   render();
 }
 document.addEventListener('focusout', () => { if (remotePending) { remotePending = false; setTimeout(onRemoteChange, 0); } });
+
+$$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
 
 (async function boot() {
   if (Cloud.enabled) {
