@@ -6,6 +6,7 @@
 /* ============================== Constants ============================== */
 
 const DB_KEY = 'mosso_panel_v1';
+const OWNER_TALI = 'pr_owner';
 
 const BRANCHES = ['Trafik', 'Kasko', 'DASK', 'Konut', 'İşyeri', 'Tamamlayıcı Sağlık', 'Özel Sağlık',
   'Yabancı Sağlık', 'Ferdi Kaza', 'Seyahat Sağlık', 'Hayat', 'Nakliyat', 'Sorumluluk', 'Diğer'];
@@ -58,7 +59,7 @@ const DEFAULT_TEMPLATES = [
 const DEFAULT_SETTINGS = {
   agencyName: 'Mosso Sigorta', ownerName: '', phone: '', renewalWindow: 60, pinHash: '',
   companies: DEFAULT_COMPANIES, rates: DEFAULT_RATES, templates: DEFAULT_TEMPLATES, lastBackupAt: '',
-  producers: [], // employees who bring their own clients: { id, name, email, share (% of commission), archived }
+  producers: [], // talis who share commission: { id, name, email, owner?, archived? } – see migrateSettings
 };
 
 /* ============================== Utilities ============================== */
@@ -171,6 +172,9 @@ function load() {
 function migrateSettings(s) {
   const out = { ...DEFAULT_SETTINGS, ...(s || {}) };
   out.rates = { ...DEFAULT_RATES, ...(out.rates || {}) };
+  // The agency owner is always a tali and the default one on every policy.
+  out.producers = (out.producers || []).map(({ share, ...x }) => x);
+  if (!out.producers.some(x => x.owner)) out.producers.unshift({ id: OWNER_TALI, name: 'Sevgi Ataş', email: '', owner: true });
   return out;
 }
 function migrate(s) {
@@ -257,19 +261,24 @@ function policyStatus(p) {
   if (['iptal', 'yenilendi', 'kaybedildi'].includes(p.status)) return p.status;
   return daysUntil(p.endDate) < 0 ? 'bitti' : 'aktif';
 }
-// Who brought the client: '' = the agency itself, otherwise an employee who gets a share of the commission.
-const activeProducers = () => (state.settings.producers || []).filter(x => !x.archived);
-const producerById = id => (state.settings.producers || []).find(x => x.id === id) || null;
-const producerName = id => producerById(id)?.name || '';
-function commissionSplit(p) {
-  const pr = producerById(p.producerId);
-  const c = num(p.commission), share = pr ? num(p.producerShare ?? pr.share) : 0;
-  const emp = Math.round(c * share) / 100;
-  return { pr, c, share, emp, agency: Math.round((c - emp) * 100) / 100 };
+// Talis: the people a policy's commission is shared between. Default: the owner alone; shares are equal unless edited.
+const talisAll = () => state.settings.producers || [];
+const activeTalis = () => talisAll().filter(x => !x.archived);
+const taliById = id => talisAll().find(x => x.id === id) || null;
+const taliName = id => taliById(id)?.name || 'Silinmiş tali';
+function equalShares(ids) {
+  const n = ids.length, base = n ? Math.floor(10000 / n) / 100 : 0;
+  return ids.map((id, i) => ({ id, share: i === n - 1 ? Math.round((100 - base * (n - 1)) * 100) / 100 : base }));
 }
-function myProducerId() { // an employee logging in gets their own name preselected
-  const email = (Cloud.enabled && !Cloud.isOwner && Cloud.user?.email || '').toLowerCase();
-  return email ? activeProducers().find(x => (x.email || '').toLowerCase() === email)?.id || '' : '';
+function talisOf(p) { // older policies kept one employee in producerId/producerShare, the rest went to the owner
+  if (Array.isArray(p.talis) && p.talis.length) return p.talis;
+  if (p.producerId) { const sh = num(p.producerShare ?? 50); return [{ id: OWNER_TALI, share: 100 - sh }, { id: p.producerId, share: sh }].filter(t => t.share > 0); }
+  return [{ id: OWNER_TALI, share: 100 }];
+}
+const taliAmount = (p, t) => Math.round(num(p.commission) * num(t.share)) / 100;
+function myTaliId() { // the logged-in user's own tali row, matched by e-mail
+  const email = (Cloud.enabled && Cloud.user?.email || '').toLowerCase();
+  return email ? activeTalis().find(x => (x.email || '').toLowerCase() === email)?.id || '' : '';
 }
 const statusBadge = p => { const [l, c] = POLICY_STATUS[policyStatus(p)]; return `<span class="badge ${c}">${l}</span>`; };
 
@@ -1077,7 +1086,7 @@ function viewPolicies(view) {
   const list = () => {
     const rows = filtered(), shown = rows.slice(0, 300);
     $('#pList').innerHTML = rows.length ? `<table class="stack"><thead><tr><th>Müşteri</th><th>Branş</th><th class="hide-mobile">Şirket</th><th class="hide-mobile">Konu</th><th>Bitiş</th><th class="num">Prim</th><th class="num hide-mobile">Komisyon</th><th class="hide-mobile">Durum</th></tr></thead><tbody>
-      ${shown.map(p => `<tr class="click" data-open="openPolicy:${p.id}"><td><b>${esc(custOf(p)?.name || '—')}</b><div class="small muted">${esc([p.policyNo, producerName(p.producerId)].filter(Boolean).join(' · '))}</div></td>
+      ${shown.map(p => `<tr class="click" data-open="openPolicy:${p.id}"><td><b>${esc(custOf(p)?.name || '—')}</b><div class="small muted">${esc([p.policyNo, ...talisOf(p).filter(t => t.id !== OWNER_TALI).map(t => taliName(t.id))].filter(Boolean).join(' · '))}</div></td>
         <td>${esc(p.branch)}</td><td class="hide-mobile">${esc(p.company || '')}</td><td class="hide-mobile">${esc(p.subject || '')}</td>
         <td>${fmtDate(p.endDate)}${policyStatus(p) === 'aktif' && daysUntil(p.endDate) <= 30 ? '<br>' + daysBadge(daysUntil(p.endDate)) : ''}</td>
         <td class="num">${money(p.premium)}</td><td class="num hide-mobile">${money(p.commission)}</td><td class="hide-mobile">${statusBadge(p)}</td></tr>`).join('')}
@@ -1096,18 +1105,21 @@ function openPolicyForm(id, preset = {}, onSaved) {
   const c = custOf(p);
   const [subjL, subjPh] = subjectLabel(p.branch);
   const claims = id ? state.claims.filter(x => x.policyId === id) : [];
-  const lastProducerOf = cid => state.policies.filter(x => x.customerId === cid && x.id !== id).sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0]?.producerId || '';
-  if (!id && p.producerId === undefined) p.producerId = myProducerId() || (p.customerId ? lastProducerOf(p.customerId) : '');
-  const prodList = activeProducers();
-  if (p.producerId && !prodList.some(x => x.id === p.producerId) && producerById(p.producerId)) prodList.push(producerById(p.producerId));
-  const prodField = prodList.length ? field('Kimin müşterisi', `<select name="producerId">${opts([['', `${state.settings.agencyName || 'Acente'} (acente)`], ...prodList.map(x => [x.id, x.name])], p.producerId || '')}</select>`) : '';
+  const lastPolicyOf = cid => state.policies.filter(x => x.customerId === cid && x.id !== id).sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
+  const defaultTalis = cid => {
+    const last = cid && lastPolicyOf(cid);
+    if (last) return talisOf(last).map(t => ({ ...t }));
+    const me = myTaliId();
+    return equalShares(me && me !== OWNER_TALI ? [OWNER_TALI, me] : [OWNER_TALI]);
+  };
+  let talis = id ? talisOf(p).map(t => ({ ...t })) : defaultTalis(p.customerId);
+  let talisTouched = !!id;
 
   openModal({
     title: id ? `${p.branch} poliçesi – ${c?.name || ''}` : 'Yeni poliçe', wide: true,
     body: `<form id="pf" class="form-grid">${custDatalist()}
       ${field('Müşteri *', `<input name="customer" list="custList" required value="${esc(c ? custLabel(c) : '')}" placeholder="İsim yazıp seçin ya da yeni isim girin">`)}
       ${field('Telefon (yeni müşteri için)', `<input name="newPhone" inputmode="tel" placeholder="05xx xxx xx xx" ${c ? 'disabled' : ''}>`)}
-      ${prodField}
       ${field('Branş', `<select name="branch">${opts(BRANCHES, p.branch)}</select>`)}
       ${field('Sigorta şirketi', `<select name="company"><option value="">Seçin</option>${opts(companyList(p.company), p.company)}</select>`)}
       ${field('Poliçe no', `<input name="policyNo" value="${esc(p.policyNo || '')}">`)}
@@ -1119,6 +1131,12 @@ function openPolicyForm(id, preset = {}, onSaved) {
       ${field('Ödeme', `<select name="payment">${opts(Object.entries(PAYMENT), p.payment)}</select>`)}
       ${field('Taksit sayısı', `<input type="number" name="instCount" min="1" max="12" value="${esc(p.installments?.length || p.instCount || 3)}">`, 'inst-count')}
       ${id ? field('Durum', `<select name="status">${opts([['aktif', 'Aktif'], ['yenilendi', 'Yenilendi'], ['kaybedildi', 'Kaybedildi'], ['iptal', 'İptal']], p.status)}</select>`) : ''}
+      <div class="full tali-box">
+        <div class="tali-head"><b>Taliler</b><span class="small" id="taliSum"></span></div>
+        <div id="taliRows"></div>
+        <div class="hstack tali-actions"><select id="taliAdd" aria-label="Tali ekle" style="width:auto"></select>
+          <button type="button" class="btn sm ghost" id="taliEqual">Eşit dağıt</button></div>
+      </div>
       ${field('Notlar', `<textarea name="notes" rows="2" placeholder="Teminat, muafiyet, özel şartlar…">${esc(p.notes || '')}</textarea>`, 'full')}
       ${p.installments?.length ? `<div class="full"><b>Taksitler</b><div class="card mt">${p.installments.map((inst, i) => `<div class="list-item"><div class="grow">${i + 1}. taksit · ${fmtDate(inst.due)} · <b>${money(inst.amount)}</b></div>
         ${inst.paid ? `<span class="badge green">Ödendi ${fmtDate(inst.paidAt)}</span>` : daysBadge(daysUntil(inst.due))}</div>`).join('')}</div><p class="muted small">Tahsilatları Tahsilat ekranından işaretleyin.</p></div>` : ''}
@@ -1143,18 +1161,51 @@ function openPolicyForm(id, preset = {}, onSaved) {
       else if (num(form.premium.value)) form.premium.oninput();
       form.endDate.oninput = () => { endTouched = true; };
       form.startDate.onchange = () => { if (!endTouched && form.startDate.value) form.endDate.value = addMonths(form.startDate.value, 12); };
+      // Tali rows: who shares this policy's commission, and how much each gets
+      const taliTotal = () => Math.round(talis.reduce((a, t) => a + num(t.share), 0) * 100) / 100;
+      const renderTalis = () => {
+        const com = num(form.commission.value);
+        $('#taliRows', el).innerHTML = talis.map((t, i) => `<div class="tali-row" data-i="${i}">
+          <div class="grow"><b>${esc(taliName(t.id))}</b>${taliById(t.id)?.owner ? ' <span class="badge">Sahip</span>' : ''}</div>
+          <label class="tali-share"><input class="ts num" type="number" min="0" max="100" step="0.01" value="${t.share}" aria-label="${esc(taliName(t.id))} payı"><span>%</span></label>
+          <span class="tali-amt num">${money(com * num(t.share) / 100)}</span>
+          <button type="button" class="icon-btn tr" aria-label="Taliyi çıkar">${icon('x')}</button></div>`).join('')
+          || '<p class="muted small" style="padding:8px 0">Tali seçilmedi. En az bir tali ekleyin.</p>';
+        const free = activeTalis().filter(x => !talis.some(t => t.id === x.id));
+        $('#taliAdd', el).innerHTML = `<option value="">${free.length ? 'Tali ekle…' : 'Eklenecek tali yok'}</option>${opts(free.map(x => [x.id, x.name]))}`;
+        $('#taliAdd', el).disabled = !free.length;
+        const tot = taliTotal();
+        $('#taliSum', el).textContent = talis.length ? (Math.abs(tot - 100) < 0.05 ? `Toplam %100 · ${money(com)}` : `Toplam %${tot} – 100 olmalı`) : '';
+        $('#taliSum', el).className = 'small ' + (talis.length && Math.abs(tot - 100) >= 0.05 ? 'err' : 'muted');
+      };
+      const rebalance = () => { talis = equalShares(talis.map(t => t.id)); talisTouched = true; renderTalis(); };
+      $('#taliAdd', el).onchange = e => { if (!e.target.value) return; talis.push({ id: e.target.value, share: 0 }); rebalance(); };
+      $('#taliEqual', el).onclick = rebalance;
+      $('#taliRows', el).onclick = e => { const b = e.target.closest('.tr'); if (b) { talis.splice(+b.closest('.tali-row').dataset.i, 1); rebalance(); } };
+      $('#taliRows', el).oninput = e => {
+        const inp = e.target.closest('.ts'); if (!inp) return;
+        talis[+inp.closest('.tali-row').dataset.i].share = num(inp.value); talisTouched = true;
+        const com = num(form.commission.value);
+        inp.closest('.tali-row').querySelector('.tali-amt').textContent = money(com * num(inp.value) / 100);
+        const tot = taliTotal();
+        $('#taliSum', el).textContent = Math.abs(tot - 100) < 0.05 ? `Toplam %100 · ${money(com)}` : `Toplam %${tot} – 100 olmalı`;
+        $('#taliSum', el).className = 'small ' + (Math.abs(tot - 100) < 0.05 ? 'muted' : 'err');
+      };
+      form.addEventListener('input', e => { if (e.target === form.commission || e.target === form.premium) renderTalis(); });
+      renderTalis();
       form.customer.oninput = () => {
         const cc = findCustomer(form.customer.value);
         form.newPhone.disabled = !!cc;
-        if (cc && form.producerId && !form.producerId.dataset.touched && !id) form.producerId.value = myProducerId() || lastProducerOf(cc.id);
+        if (cc && !talisTouched && !id) { talis = defaultTalis(cc.id); renderTalis(); }
       };
-      form.producerId && (form.producerId.onchange = () => { form.producerId.dataset.touched = '1'; });
       if (id) renderFiles($('#pFiles', el), { customerId: p.customerId, policyId: id });
 
       $('#pSave', el).onclick = async () => {
         if (!form.reportValidity()) return;
         const d = formData(form);
         if (d.endDate < d.startDate) return toast('Bitiş tarihi başlangıçtan önce olamaz', 'err');
+        if (!talis.length) return toast('En az bir tali seçin', 'err');
+        if (Math.abs(taliTotal() - 100) >= 0.05) return toast(`Tali payları toplamı %${taliTotal()}, %100 olmalı`, 'err');
         let cust = findCustomer(d.customer);
         if (!cust) {
           if (!await confirmBox(`"${d.customer}" kayıtlı değil. Yeni müşteri olarak eklensin mi?`, 'Ekle', false)) return;
@@ -1163,8 +1214,8 @@ function openPolicyForm(id, preset = {}, onSaved) {
         const prevPremium = byId('policies', id)?.premium;
         const data = { ...p, ...d, customerId: cust.id, premium: num(d.premium), commission: num(d.commission), status: d.status || p.status || 'aktif' };
         delete data.customer; delete data.newPhone;
-        data.producerId = d.producerId || '';
-        data.producerShare = !data.producerId ? 0 : (data.producerId === p.producerId && p.producerShare != null ? p.producerShare : num(producerById(data.producerId)?.share));
+        data.talis = talis.map(t => ({ id: t.id, share: num(t.share) }));
+        delete data.producerId; delete data.producerShare; delete data.taliAdd;
         const sameShape = p.installments?.length && data.payment === p.payment && (data.payment !== 'taksit' || +d.instCount === p.installments.length) && num(prevPremium) === data.premium && data.startDate === p.startDate;
         data.installments = sameShape ? p.installments : buildInstallments(data, p.installments);
         const saved = upsert('policies', data);
@@ -1370,7 +1421,7 @@ function viewReports(view) {
   $('#rRange').onchange = e => { f.range = e.target.value; render(); };
 }
 
-// Per-person commission: what each employee earns from the clients they brought, and what stays with the agency.
+// Per-tali commission: each policy's commission is divided between its talis by their shares.
 function viewCommissionReport(view) {
   const f = ui.reports, today = todayStr(), ym = today.slice(0, 7);
   const [from, to] = {
@@ -1382,50 +1433,53 @@ function viewCommissionReport(view) {
   }[f.cperiod] || ['0000', '9999'];
   const periodLabel = { this: 'Bu ay', last: 'Geçen ay', year: 'Bu yıl', '12': 'Son 12 ay', all: 'Tüm zamanlar' }[f.cperiod];
   const pols = state.policies.filter(p => p.status !== 'iptal' && (p.startDate || '') >= from && (p.startDate || '') < to);
-  const people = [{ id: '', name: `${state.settings.agencyName || 'Acente'} (acente)` }, ...(state.settings.producers || []).filter(x => !x.archived || pols.some(p => p.producerId === x.id))];
+  const onPolicy = (p, xid) => talisOf(p).find(t => t.id === xid);
+  const people = talisAll().filter(x => !x.archived || pols.some(p => onPolicy(p, x.id)));
   const rows = people.map(x => {
-    const mine = pols.filter(p => (p.producerId || '') === x.id && (x.id || !producerById(p.producerId)));
-    const t = { n: mine.length, prem: 0, c: 0, emp: 0, agency: 0 };
-    mine.forEach(p => { const sp = commissionSplit(p); t.prem += num(p.premium); t.c += sp.c; t.emp += x.id ? sp.emp : 0; t.agency += sp.agency; });
-    return { x, t, mine };
+    const mine = pols.filter(p => onPolicy(p, x.id));
+    return { x, mine, prem: mine.reduce((a, p) => a + num(p.premium), 0), c: mine.reduce((a, p) => a + num(p.commission), 0), earned: mine.reduce((a, p) => a + taliAmount(p, onPolicy(p, x.id)), 0) };
   });
-  const tot = rows.reduce((a, r) => ({ c: a.c + r.t.c, emp: a.emp + r.t.emp, agency: a.agency + r.t.agency }), { c: 0, emp: 0, agency: 0 });
-  if (f.cperson == null || !people.some(x => x.id === f.cperson)) f.cperson = people[1]?.id ?? '';
+  const totalC = pols.reduce((a, p) => a + num(p.commission), 0);
+  const ownerRow = rows.find(r => r.x.owner);
+  const others = rows.filter(r => !r.x.owner).reduce((a, r) => a + r.earned, 0);
+  if (f.cperson == null || !people.some(x => x.id === f.cperson)) f.cperson = people[0]?.id ?? '';
   const sel = rows.find(r => r.x.id === f.cperson) || rows[0];
-  const noProducers = !(state.settings.producers || []).length;
 
   view.innerHTML = `
     <div class="page-head"><h1>Raporlar</h1><div class="actions"><select id="cPeriod" style="width:auto">${opts([['this', 'Bu ay'], ['last', 'Geçen ay'], ['year', 'Bu yıl'], ['12', 'Son 12 ay'], ['all', 'Tüm zamanlar']], f.cperiod)}</select></div></div>
     ${reportTabs()}
-    ${noProducers ? `<div class="card mb">${emptyState('Henüz çalışan tanımlı değil. Çalışanları ve paylarını Ayarlar’dan ekleyin; poliçelerde “Kimin müşterisi” seçildikçe burada ayrı ayrı görünür.', '<a class="btn" href="#/settings">Ayarlar’a git</a>')}</div>` : ''}
     <div class="grid kpis">
-      <div class="card kpi"><div class="label">Toplam komisyon</div><div class="value">${money(tot.c)}</div><div class="sub">${periodLabel} · ${pols.length} poliçe</div></div>
-      <div class="card kpi"><div class="label">Çalışanlara düşen</div><div class="value">${money(tot.emp)}</div><div class="sub">${rows.filter(r => r.x.id && r.t.n).length} çalışan</div></div>
-      <div class="card kpi"><div class="label">Acenteye kalan</div><div class="value">${money(tot.agency)}</div><div class="sub">${tot.c ? '%' + (tot.agency / tot.c * 100).toFixed(0) : '—'}</div></div>
+      <div class="card kpi"><div class="label">Toplam komisyon</div><div class="value">${money(totalC)}</div><div class="sub">${periodLabel} · ${pols.length} poliçe</div></div>
+      <div class="card kpi"><div class="label">${esc(ownerRow?.x.name || 'Sahip')} payı</div><div class="value">${money(ownerRow?.earned || 0)}</div><div class="sub">${ownerRow?.mine.length || 0} poliçede tali</div></div>
+      <div class="card kpi"><div class="label">Diğer talilere düşen</div><div class="value">${money(others)}</div><div class="sub">${rows.filter(r => !r.x.owner && r.mine.length).length} kişi</div></div>
     </div>
-    <div class="card mb"><div class="card-head"><h2>Kişi bazında</h2></div><div class="table-wrap"><table class="stack">
-      <thead><tr><th>Kim</th><th class="num">Poliçe</th><th class="num hide-mobile">Prim</th><th class="num">Komisyon</th><th class="num hide-mobile">Pay</th><th class="num">Çalışanın payı</th><th class="num">Acenteye kalan</th></tr></thead>
+    <div class="card mb"><div class="card-head"><h2>Tali bazında</h2></div><div class="table-wrap"><table class="stack">
+      <thead><tr><th>Tali</th><th class="num">Poliçe</th><th class="num hide-mobile">Prim</th><th class="num">Poliçelerin komisyonu</th><th class="num">Payına düşen</th></tr></thead>
       <tbody>${rows.map(r => `<tr class="click" data-act="pickPerson" data-pid="${esc(r.x.id)}">
-        <td><b>${esc(r.x.name)}</b>${r.x.archived ? ' <span class="badge">Ayrıldı</span>' : ''}</td><td class="num" data-label="Poliçe">${r.t.n}</td><td class="num hide-mobile">${money(r.t.prem)}</td>
-        <td class="num" data-label="Komisyon">${money(r.t.c)}</td><td class="num hide-mobile">${r.x.id ? '%' + num(r.x.share) : '—'}</td>
-        <td class="num" data-label="Çalışanın payı">${r.x.id ? `<b>${money(r.t.emp)}</b>` : '<span class="muted">—</span>'}</td><td class="num" data-label="Acenteye kalan">${money(r.t.agency)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td>Toplam</td><td class="num">${pols.length}</td><td class="num hide-mobile">${money(rows.reduce((a, r) => a + r.t.prem, 0))}</td><td class="num">${money(tot.c)}</td><td class="hide-mobile"></td><td class="num">${money(tot.emp)}</td><td class="num">${money(tot.agency)}</td></tr></tfoot>
+        <td><b>${esc(r.x.name)}</b>${r.x.owner ? ' <span class="badge">Sahip</span>' : ''}${r.x.archived ? ' <span class="badge">Ayrıldı</span>' : ''}</td>
+        <td class="num" data-label="Poliçe">${r.mine.length}</td><td class="num hide-mobile">${money(r.prem)}</td>
+        <td class="num" data-label="Poliçelerin komisyonu">${money(r.c)}</td><td class="num" data-label="Payına düşen"><b>${money(r.earned)}</b></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Toplam</td><td class="num">${pols.length}</td><td class="num hide-mobile">${money(pols.reduce((a, p) => a + num(p.premium), 0))}</td><td class="num">${money(totalC)}</td><td class="num">${money(rows.reduce((a, r) => a + r.earned, 0))}</td></tr></tfoot>
     </table></div></div>
     <div class="card"><div class="card-head"><h2>Poliçe dökümü</h2><div class="actions">
-      <select id="cPerson" style="width:auto">${opts(people.map(x => [x.id, x.name]), sel.x.id)}</select>
+      <select id="cPerson" style="width:auto">${opts(people.map(x => [x.id, x.name]), sel?.x.id)}</select>
       <button class="btn sm" id="cExport">${icon('download')}Excel'e aktar</button></div></div>
-      <div class="table-wrap">${sel.mine.length ? `<table class="stack"><thead><tr><th>Müşteri</th><th>Branş / Şirket</th><th class="hide-mobile">Başlangıç</th><th class="num hide-mobile">Prim</th><th class="num">Komisyon</th><th class="num">${sel.x.id ? 'Payı' : 'Acenteye'}</th></tr></thead><tbody>
-        ${sel.mine.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')).map(p => { const sp = commissionSplit(p); return `<tr class="click" data-open="openPolicy:${p.id}">
+      <div class="table-wrap">${sel?.mine.length ? `<table class="stack"><thead><tr><th>Müşteri</th><th>Branş / Şirket</th><th class="hide-mobile">Başlangıç</th><th class="hide-mobile">Diğer taliler</th><th class="num">Komisyon</th><th class="num">Payına düşen</th></tr></thead><tbody>
+        ${[...sel.mine].sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')).map(p => { const t = onPolicy(p, sel.x.id); return `<tr class="click" data-open="openPolicy:${p.id}">
           <td><b>${esc(custOf(p)?.name || '—')}</b></td><td>${esc(p.branch)}<div class="small muted">${esc(p.company || '')}</div></td><td class="hide-mobile">${fmtDate(p.startDate)}</td>
-          <td class="num hide-mobile">${money(p.premium)}</td><td class="num" data-label="Komisyon">${money(sp.c)}</td><td class="num" data-label="${sel.x.id ? 'Payı' : 'Acenteye'}">${sel.x.id ? `${money(sp.emp)} <span class="muted small">%${sp.share}</span>` : money(sp.agency)}</td></tr>`; }).join('')}
-        </tbody></table>` : emptyState(`${esc(sel.x.name)} için bu dönemde poliçe yok.`)}</div></div>`;
+          <td class="hide-mobile small muted">${esc(talisOf(p).filter(x => x.id !== sel.x.id).map(x => taliName(x.id)).join(', ') || '—')}</td>
+          <td class="num" data-label="Komisyon">${money(p.commission)}</td><td class="num" data-label="Payına düşen">${money(taliAmount(p, t))} <span class="muted small">%${t.share}</span></td></tr>`; }).join('')}
+        </tbody></table>` : emptyState(`${esc(sel?.x.name || '')} için bu dönemde poliçe yok.`)}</div></div>`;
 
   $('#cPeriod').onchange = e => { f.cperiod = e.target.value; render(); };
   $('#cPerson').onchange = e => { f.cperson = e.target.value; render(); };
-  $('#cExport').onclick = () => download(`komisyon-${(sel.x.name || 'acente').replace(/\s+/g, '-')}-${from.slice(0, 7)}.csv`, toCSV([
-    ['Kim', 'Müşteri', 'Branş', 'Şirket', 'Poliçe No', 'Başlangıç', 'Prim', 'Komisyon', 'Pay %', 'Çalışanın payı', 'Acenteye kalan'],
-    ...sel.mine.map(p => { const sp = commissionSplit(p); const tr = n => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return [sel.x.name, custOf(p)?.name, p.branch, p.company, p.policyNo, fmtDate(p.startDate), tr(p.premium), tr(sp.c), sel.x.id ? sp.share : '', sel.x.id ? tr(sp.emp) : '', tr(sp.agency)]; })]));
+  $('#cExport').onclick = () => {
+    const tr = n => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    download(`komisyon-${(sel.x.name || 'tali').replace(/\s+/g, '-')}-${from.slice(0, 7)}.csv`, toCSV([
+      ['Tali', 'Müşteri', 'Branş', 'Şirket', 'Poliçe No', 'Başlangıç', 'Prim', 'Komisyon', 'Pay %', 'Payına düşen', 'Diğer taliler'],
+      ...sel.mine.map(p => { const t = onPolicy(p, sel.x.id);
+        return [sel.x.name, custOf(p)?.name, p.branch, p.company, p.policyNo, fmtDate(p.startDate), tr(p.premium), tr(p.commission), t.share, tr(taliAmount(p, t)), talisOf(p).filter(x => x.id !== sel.x.id).map(x => `${taliName(x.id)} %${x.share}`).join(', ')]; })]));
+  };
 }
 
 /* ============================== Settings & data ============================== */
@@ -1469,9 +1523,9 @@ function viewSettings(view) {
       ${isOwner() ? '<div class="hstack mt"><button class="btn" data-act="loadDemo">Demo verisi yükle</button><button class="btn danger" id="wipe">Tüm verileri sil</button></div>' : ''}
     </div></div>
 
-    ${isOwner() ? `<form class="card mb" id="sfProd"><div class="card-head"><h2>Çalışanlar ve komisyon paylaşımı</h2><div class="actions"><button type="button" class="btn sm" id="addProd">${icon('plus')}Çalışan</button></div></div><div class="card-pad">
-      <p class="muted">Çalışanın kendi getirdiği müşterilerin komisyonu bu oranla paylaşılır. Poliçede “Kimin müşterisi” alanından seçilir; oran poliçe kaydedilirken sabitlenir, sonradan değişirse yalnızca yeni poliçelere uygulanır.</p>
-      <div id="prodRows">${activeProducers().map(producerRow).join('') || '<p class="empty-line muted">Henüz çalışan eklenmedi.</p>'}</div>
+    ${isOwner() ? `<form class="card mb" id="sfProd"><div class="card-head"><h2>Taliler ve komisyon paylaşımı</h2><div class="actions"><button type="button" class="btn sm" id="addProd">${icon('plus')}Tali</button></div></div><div class="card-pad">
+      <p class="muted">Her poliçede komisyon, seçilen taliler arasında <b>eşit</b> bölünür; gerekirse oranlar poliçe formunda değiştirilir. Acente sahibi her poliçede varsayılan talidir. E-postası girilen kişi panele girdiğinde kendi adı otomatik seçilir.</p>
+      <div id="prodRows">${activeTalis().map(producerRow).join('')}</div>
       <button class="btn primary mt">Kaydet</button></div></form>` : ''}
 
     <div class="grid two mb">
@@ -1494,22 +1548,22 @@ function viewSettings(view) {
   const prodForm = $('#sfProd');
   if (prodForm) {
     $('#addProd').onclick = () => {
-      $('#prodRows .empty-line')?.remove();
-      $('#prodRows').insertAdjacentHTML('beforeend', producerRow({ id: 'pr_' + uid(), name: '', email: '', share: 50 }));
+      $('#prodRows').insertAdjacentHTML('beforeend', producerRow({ id: 'pr_' + uid(), name: '', email: '' }));
       $('#prodRows .prod-row:last-child input').focus();
     };
     prodForm.onclick = async e => {
       const b = e.target.closest('.pdel'); if (!b) return;
-      const row = b.closest('[data-pid]'), used = state.policies.some(x => x.producerId === row.dataset.pid);
-      if (used && !await confirmBox('Bu çalışan listeden kaldırılacak. Eski poliçelerindeki kayıt ve raporlar korunur. Devam?', 'Kaldır', false)) return;
+      const row = b.closest('[data-pid]'), used = state.policies.some(x => talisOf(x).some(t => t.id === row.dataset.pid));
+      if (used && !await confirmBox('Bu tali listeden kaldırılacak. Eski poliçelerdeki payı ve raporları korunur. Devam?', 'Kaldır', false)) return;
       row.remove();
     };
     prodForm.onsubmit = e => {
       e.preventDefault();
-      const rows = $$('[data-pid]', prodForm).map(r => ({ id: r.dataset.pid, name: $('.pn', r).value.trim(), email: $('.pe', r).value.trim(), share: Math.min(100, Math.max(0, num($('.ps', r).value))) })).filter(x => x.name);
+      const rows = $$('[data-pid]', prodForm).map(r => ({ ...(taliById(r.dataset.pid) || {}), id: r.dataset.pid, name: $('.pn', r).value.trim(), email: $('.pe', r).value.trim() })).filter(x => x.name);
+      if (!rows.some(x => x.owner)) return toast('Acente sahibinin adı boş olamaz', 'err');
       const kept = new Set(rows.map(x => x.id));
-      s.producers = [...rows, ...(s.producers || []).filter(x => !kept.has(x.id)).map(x => ({ ...x, archived: true }))];
-      commit('Çalışan listesi güncellendi'); toast('Kaydedildi');
+      s.producers = [...rows.map(({ archived, ...x }) => x), ...talisAll().filter(x => !kept.has(x.id)).map(x => ({ ...x, archived: true }))];
+      commit('Tali listesi güncellendi'); toast('Kaydedildi');
     };
   }
   $('#restore') && ($('#restore').onclick = () => pickFile('.json,application/json', restoreBackup));
@@ -1529,10 +1583,9 @@ function viewSettings(view) {
 
 function producerRow(x) {
   return `<div class="prod-row" data-pid="${esc(x.id)}">
-    ${field('Ad Soyad', `<input class="pn" value="${esc(x.name)}" placeholder="Ayşe Kaya">`)}
-    ${field('Giriş e-postası (opsiyonel)', `<input class="pe" type="email" value="${esc(x.email || '')}" placeholder="Panele giriyorsa">`)}
-    ${field('Payı (%)', `<input class="ps num" type="number" min="0" max="100" step="1" value="${esc(x.share ?? 50)}">`)}
-    <button type="button" class="icon-btn pdel" aria-label="Çalışanı kaldır">${icon('trash')}</button></div>`;
+    ${field(x.owner ? 'Acente sahibi' : 'Ad Soyad', `<input class="pn" value="${esc(x.name)}" placeholder="Ayşe Kaya">`)}
+    ${field('Giriş e-postası', `<input class="pe" type="email" value="${esc(x.email || '')}" placeholder="${x.owner ? 'Panele giriş yaptığı e-posta' : 'Panele giriyorsa'}">`)}
+    ${x.owner ? '<span class="badge prod-badge">Sahip</span>' : `<button type="button" class="icon-btn pdel" aria-label="Taliyi kaldır">${icon('trash')}</button>`}</div>`;
 }
 
 /* ---------- Message templates (own tab) ---------- */
@@ -1667,7 +1720,7 @@ function ensureProducers(staff, { revive = false } = {}) {
   for (const m of staff) {
     const email = (m.email || '').toLowerCase();
     const found = prods.find(x => (x.email || '').toLowerCase() === email);
-    if (!found) { prods.push({ id: 'pr_' + uid(), name: nameFromEmail(m.email), email: m.email, share: 50 }); changed++; }
+    if (!found) { prods.push({ id: 'pr_' + uid(), name: nameFromEmail(m.email), email: m.email }); changed++; }
     else if (revive && found.archived) { delete found.archived; changed++; }
   }
   return changed;
@@ -1678,7 +1731,7 @@ async function renderMembers() {
   try {
     const list = await Cloud.members.list();
     const added = ensureProducers(list.filter(m => m.role === 'staff'));
-    if (added) { commit(`${added} çalışan komisyon listesine eklendi`); toast('Çalışanlar komisyon paylaşımı listesine eklendi'); return; }
+    if (added) { commit(`${added} çalışan komisyon listesine eklendi`); toast('Çalışanlar tali listesine eklendi'); return; }
     box.innerHTML = list.map(m => `<div class="list-item" style="padding:8px 0"><div class="grow"><div class="title">${esc(m.email)}</div><div class="meta">${fmtDate(m.created_at.slice(0, 10))}</div></div>
       ${m.user_id === Cloud.user.id ? '<span class="badge">Sahip (admin) · Siz</span>'
         : `<select class="member-role" data-email="${esc(m.email)}" aria-label="Rol" style="width:auto">${opts([['staff', 'Çalışan'], ['owner', 'Sahip (admin)']], m.role)}</select>
@@ -1749,7 +1802,7 @@ function toCSV(rows) {
 }
 function exportPoliciesCSV(list) {
   const trNum = n => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  download(`policeler-${todayStr()}.csv`, toCSV([[...CSV_HEADERS, 'Durum', 'Kimin müşterisi'], ...list.map(p => { const c = custOf(p); return [c?.name, c?.phone, c?.tc, c?.email, p.branch, p.company, p.policyNo, fmtDate(p.startDate), fmtDate(p.endDate), trNum(p.premium), trNum(p.commission), p.subject, POLICY_STATUS[policyStatus(p)][0], producerName(p.producerId) || 'Acente']; })]));
+  download(`policeler-${todayStr()}.csv`, toCSV([[...CSV_HEADERS, 'Durum', 'Taliler'], ...list.map(p => { const c = custOf(p); return [c?.name, c?.phone, c?.tc, c?.email, p.branch, p.company, p.policyNo, fmtDate(p.startDate), fmtDate(p.endDate), trNum(p.premium), trNum(p.commission), p.subject, POLICY_STATUS[policyStatus(p)][0], talisOf(p).map(t => `${taliName(t.id)} %${t.share}`).join(', ')]; })]));
 }
 
 function parseCSV(text) {
@@ -2008,9 +2061,9 @@ function seedDemo() {
       upsert('policies', p);
     });
   });
-  if (!(state.settings.producers || []).length) state.settings.producers = [{ id: 'pr_ayse', name: 'Ayşe Kaya', email: '', share: 50 }, { id: 'pr_mert', name: 'Mert Aydın', email: '', share: 50 }];
+  for (const t of [{ id: 'pr_ayse', name: 'Ayşe Kaya', email: '' }, { id: 'pr_mert', name: 'Mert Aydın', email: '' }]) if (!taliById(t.id)) state.settings.producers.push(t);
   const demoCust = new Set(custs.map(c => c.id));
-  state.policies.forEach(p => { if (demoCust.has(p.customerId) && !p.producerId && rnd() < .4) { const pr = pick(state.settings.producers); p.producerId = pr.id; p.producerShare = pr.share; } });
+  state.policies.forEach(p => { if (demoCust.has(p.customerId) && !p.talis) p.talis = rnd() < .4 ? equalShares([OWNER_TALI, pick(['pr_ayse', 'pr_mert'])]) : equalShares([OWNER_TALI]); });
   // Older renewed/lost policies so reports have history
   custs.slice(4, 16).forEach((c, i) => {
     const end = addDays(today, -Math.floor(rnd() * 300) - 5);

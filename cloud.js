@@ -369,7 +369,8 @@ const Cloud = (() => {
     user = (await sb.auth.getSession()).data.session.user;
 
     let cached = null;
-    try { cached = await kv.get(cacheKey()); } catch (e) { /* private window */ }
+    // A blocked or broken local cache must never stop the panel from opening: fall back to the server after 3 s.
+    try { cached = await Promise.race([kv.get(cacheKey()), new Promise(res => setTimeout(() => res(null), 3000))]); } catch (e) { /* private window */ }
     if (cached?.meta) meta = { ...freshMeta(), ...cached.meta };
 
     let membership = null;

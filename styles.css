@@ -331,9 +331,21 @@ td b { font-weight: 600; }
 .file-ico { color: var(--muted); display: inline-flex; }
 
 /* Employees and their share */
-.prod-row { display: grid; grid-template-columns: 1.2fr 1.5fr 110px 32px; gap: 12px; align-items: end; margin-top: 14px; }
+.prod-row { display: grid; grid-template-columns: 1.2fr 1.5fr 56px; gap: 12px; align-items: end; margin-top: 14px; }
+.prod-row .prod-badge { margin-bottom: 7px; justify-self: start; }
 .prod-row .icon-btn { margin-bottom: 2px; }
 .empty-line { margin-top: 12px; }
+
+/* Talis inside the policy form */
+.tali-box { border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 14px; background: var(--raised); }
+.tali-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.tali-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); }
+.tali-row:first-child { border-top: 0; }
+.tali-row .grow { flex: 1; min-width: 0; }
+.tali-share { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.tali-share input { width: 84px; height: 32px; text-align: right; }
+.tali-amt { width: 100px; text-align: right; color: var(--muted); }
+.tali-actions { margin-top: 8px; }
 
 /* Message templates: the name sits in the card header like a title */
 .tpl .card-head input.tn { border-color: transparent; background: transparent; font-weight: 600; font-size: 15px; padding-left: 6px; margin-left: -7px; height: 34px; min-width: 0; flex: 1; }
@@ -444,7 +456,7 @@ code.secret { word-break: break-all; background: var(--rule); padding: 3px 7px; 
   .sync-pill { padding: 0 10px; max-width: 44px; font-size: 0; gap: 0; justify-content: center; }
   .grid.two { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
-  .prod-row { grid-template-columns: 1fr 96px 32px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+  .prod-row { grid-template-columns: 1fr 56px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
   .prod-row label:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .grid.kpis > .kpi { flex-basis: 40%; }
   .kpi { padding: 14px 16px; }
